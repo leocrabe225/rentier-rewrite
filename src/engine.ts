@@ -1,6 +1,6 @@
 import type { Command } from "./commands";
 import type { GameEvent } from "./events";
-import type { GameState, PlayerId } from "./domain/state";
+import type { GameState, PlayerId, Player } from "./domain/state";
 import {
   BOARD_SIZE,
   boardPosition,
@@ -38,23 +38,32 @@ export function reduce(
 }
 
 function rollDice(state: GameState, deps: EngineDeps): EngineResult {
-  const player = state.players.find((p) => p.id === state.currentPlayerId);
-
-  if (player === undefined) {
-    throw new Error("Impossible state");
-  }
+  const player = currentPlayer(state);
 
   const [a, b] = deps.dice.roll();
   const sum = a + b;
 
   const from = player.position;
-  const to = boardPosition((from + sum) % BOARD_SIZE);
+  const raw = from + sum;
+  const to = boardPosition(raw % BOARD_SIZE);
 
   const events: GameEvent[] = [];
 
   events.push({ type: "Moved", playerId: player.id, from, to });
+  if (raw >= BOARD_SIZE) {
+    events.push({ type: "PassedGo", playerId: player.id });
+  }
 
   return { state: withPlayerPosition(state, player.id, to), events };
+}
+
+function currentPlayer(state: GameState): Player {
+  const player = state.players.find((p) => p.id === state.currentPlayerId);
+
+  if (player === undefined) {
+    throw new Error(`Current player not found: ${state.currentPlayerId}`);
+  }
+  return player;
 }
 
 function withPlayerPosition(
