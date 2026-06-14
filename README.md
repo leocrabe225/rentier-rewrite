@@ -18,7 +18,7 @@ This file taught me more than anything else I've written. This repo is the act o
 
 ## Design goals
 
-**Commands in, events out.** Player intent enters as explicit commands (`RollDice`, `BuyProperty`, `ImproveProperty`); the engine validates them and returns events. Nothing mutates state from a distance, and nothing has to reconstruct *what happened* from *how the state changed*. Replay, undo, and an honest audit trail fall out for free.
+**Commands in, events out.** Player intent enters as explicit commands (`RollDice`, `BuyProperty`, `ImproveProperty`); the engine validates them and returns events. Nothing mutates state from a distance, and nothing has to reconstruct _what happened_ from _how the state changed_. Replay, undo, and an honest audit trail fall out for free.
 
 **A typed domain instead of parallel arrays.** Tiles are a discriminated union; the compiler enforces exhaustive handling of every tile type. A board position is a type, not a convention. The class of bug that produced the legacy's off-by-ones does not compile here.
 
@@ -31,6 +31,21 @@ This file taught me more than anything else I've written. This repo is the act o
 In progress, domain core first, fully tested. A thin React board view comes after the engine is trustworthy, not before: the legacy spent half its lines manually showing and hiding widgets, and the rewrite's UI will be a function of state instead.
 
 The issue tracker was seeded by an AI agent's code review of the legacy; the rewrite closes those issues one commit at a time.
+
+## Running it
+
+There's nothing to launch, for a pure engine, the test suite is the entry point.
+
+```bash
+npm install
+npm test           # watch mode, the red/green dev loop
+npm run test:run   # a single pass (e.g. CI)
+npm run typecheck  # tsc --noEmit, the type gate
+```
+
+## How this was built
+
+Every line of `rentier` is hand-written. The AI assistant I paired with was configured read-only. It could read the source and run the test suite, but never edit a file. The permission set that enforces that lives in [`.claude/settings.json`](.claude/settings.json).
 
 ## License
 
