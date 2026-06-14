@@ -8,4 +8,9 @@ export type GameEvent =
       readonly from: BoardPosition;
       readonly to: BoardPosition;
     }
-  | { readonly type: "PassedGo"; readonly playerId: PlayerId };
+  | { readonly type: "PassedGo"; readonly playerId: PlayerId }
+  | {
+      readonly type: "LandedOnProperty";
+      readonly playerId: PlayerId;
+      readonly position: BoardPosition;
+    };

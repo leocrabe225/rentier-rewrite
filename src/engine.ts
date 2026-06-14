@@ -6,6 +6,8 @@ import {
   boardPosition,
   type BoardPosition,
 } from "./domain/position";
+import type { Tile } from "./domain/tiles";
+import { tileAt } from "./domain/board";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
@@ -54,6 +56,9 @@ function rollDice(state: GameState, deps: EngineDeps): EngineResult {
     events.push({ type: "PassedGo", playerId: player.id });
   }
 
+  const tile = tileAt(to);
+  events.push(...eventsForTile(tile, player.id, to));
+
   return { state: withPlayerPosition(state, player.id, to), events };
 }
 
@@ -77,6 +82,21 @@ function withPlayerPosition(
       p.id === playerId ? { ...p, position } : p,
     ),
   };
+}
+
+function eventsForTile(
+  tile: Tile,
+  playerId: PlayerId,
+  position: BoardPosition,
+): ReadonlyArray<GameEvent> {
+  switch (tile.kind) {
+    case "go":
+      return [];
+    case "property":
+      return [{ type: "LandedOnProperty", playerId, position }];
+    default:
+      return assertNever(tile);
+  }
 }
 
 function assertNever(value: never): never {

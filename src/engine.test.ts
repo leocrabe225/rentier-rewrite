@@ -23,6 +23,7 @@ describe("RollDice", () => {
         from: boardPosition(0),
         to: boardPosition(7),
       },
+      { type: "LandedOnProperty", playerId: "p1", position: boardPosition(7) },
     ]);
   });
 
@@ -46,6 +47,7 @@ describe("RollDice", () => {
         to: boardPosition(6),
       },
       { type: "PassedGo", playerId: "p1" },
+      { type: "LandedOnProperty", playerId: "p1", position: boardPosition(6) },
     ]);
   });
 
@@ -69,6 +71,29 @@ describe("RollDice", () => {
         to: boardPosition(0),
       },
       { type: "PassedGo", playerId: "p1" },
+    ]);
+  });
+
+  it("emits LandedOnProperty when the player lands on a property", () => {
+    // Arrange
+    const state: GameState = {
+      players: [{ id: "p1", position: boardPosition(0) }],
+      currentPlayerId: "p1",
+    };
+
+    const dice: Dice = { roll: () => [1, 1] };
+
+    // Act
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(0),
+        to: boardPosition(2),
+      },
+      { type: "LandedOnProperty", playerId: "p1", position: boardPosition(2) },
     ]);
   });
 });
