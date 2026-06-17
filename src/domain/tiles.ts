@@ -4,4 +4,5 @@ export type Tile =
       readonly kind: "property";
       readonly name: string;
       readonly price: number;
+      readonly rent: number;
     };

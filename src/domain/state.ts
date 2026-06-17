@@ -15,10 +15,14 @@ export interface GameState {
 }
 
 export function currentPlayer(state: GameState): Player {
-  const player = state.players.find((p) => p.id === state.currentPlayerId);
+  return playerById(state, state.currentPlayerId);
+}
+
+export function playerById(state: GameState, id: PlayerId): Player {
+  const player = state.players.find((p) => p.id === id);
 
   if (player === undefined) {
-    throw new Error(`Current player not found: ${state.currentPlayerId}`);
+    throw new Error(`player not found: ${id}`);
   }
   return player;
 }

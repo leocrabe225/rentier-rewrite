@@ -5,6 +5,7 @@ import {
   type PlayerId,
   type Player,
   currentPlayer,
+  playerById,
 } from "./domain/state";
 import {
   BOARD_SIZE,
@@ -69,6 +70,8 @@ function rollDice(state: GameState, deps: EngineDeps): Accepted {
   const raw = from + sum;
   const to = boardPosition(raw % BOARD_SIZE);
 
+  const moved = withPlayer(state, player.id, { position: to });
+
   const events: GameEvent[] = [];
 
   events.push({ type: "Moved", playerId: player.id, from, to });
@@ -76,12 +79,12 @@ function rollDice(state: GameState, deps: EngineDeps): Accepted {
     events.push({ type: "PassedGo", playerId: player.id });
   }
 
-  const tile = tileAt(to);
-  events.push(...eventsForTile(tile, player.id, to));
+  const landing = applyLanding(moved, player.id, to);
+  events.push(...landing.events);
 
   return {
     status: "accepted",
-    state: withPlayer(state, player.id, { position: to }),
+    state: landing.state,
     events,
   };
 }
@@ -146,19 +149,64 @@ function withOwnership(
   };
 }
 
-function eventsForTile(
-  tile: Tile,
+function applyLanding(
+  state: GameState,
   playerId: PlayerId,
   position: BoardPosition,
-): ReadonlyArray<GameEvent> {
+): EngineResult {
+  const tile = tileAt(position);
+
   switch (tile.kind) {
     case "go":
-      return [];
-    case "property":
-      return [{ type: "LandedOnProperty", playerId, position }];
+      return { state, events: [] };
+    case "property": {
+      const owner = state.ownership.get(position);
+
+      if (owner === undefined) {
+        return {
+          state,
+          events: [{ type: "LandedOnProperty", playerId, position }],
+        };
+      }
+
+      if (owner === playerId) {
+        return {
+          state,
+          events: [],
+        };
+      }
+
+      return {
+        state: transfer(state, playerId, owner, tile.rent),
+        events: [
+          { type: "RentPaid", from: playerId, to: owner, amount: tile.rent },
+        ],
+      };
+    }
     default:
       return assertNever(tile);
   }
+}
+
+function transfer(
+  state: GameState,
+  from: PlayerId,
+  to: PlayerId,
+  amount: number,
+): GameState {
+  const playerFrom = playerById(state, from);
+  const playerTo = playerById(state, to);
+
+  const balanceFrom = playerFrom.balance - amount;
+  const balanceTo = playerTo.balance + amount;
+
+  const newState = withPlayer(
+    withPlayer(state, from, { balance: balanceFrom }),
+    to,
+    { balance: balanceTo },
+  );
+
+  return newState;
 }
 
 function assertNever(value: never): never {
