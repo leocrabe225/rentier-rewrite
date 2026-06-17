@@ -1,3 +1,7 @@
 export type Tile =
   | { readonly kind: "go" }
-  | { readonly kind: "property"; readonly name: string };
+  | {
+      readonly kind: "property";
+      readonly name: string;
+      readonly price: number;
+    };

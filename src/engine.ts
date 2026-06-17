@@ -1,6 +1,11 @@
 import type { Command } from "./commands";
 import type { GameEvent } from "./events";
-import type { GameState, PlayerId, Player } from "./domain/state";
+import {
+  type GameState,
+  type PlayerId,
+  type Player,
+  currentPlayer,
+} from "./domain/state";
 import {
   BOARD_SIZE,
   boardPosition,
@@ -24,22 +29,37 @@ export interface EngineResult {
   readonly events: ReadonlyArray<GameEvent>;
 }
 
+export type RejectionReason =
+  | "NotOnAProperty"
+  | "InsufficientFunds"
+  | "AlreadyOwned";
+
+export interface Accepted extends EngineResult {
+  readonly status: "accepted";
+}
+export interface Rejected {
+  readonly status: "rejected";
+  readonly reason: RejectionReason;
+}
+
+export type Reduction = Accepted | Rejected;
+
 export function reduce(
   state: GameState,
   command: Command,
   deps: EngineDeps,
-): EngineResult {
+): Reduction {
   switch (command.type) {
     case "RollDice":
       return rollDice(state, deps);
-    case "buyProperty":
-      throw new Error("buyProperty: not implemented");
+    case "BuyProperty":
+      return buyProperty(state);
     default:
       return assertNever(command);
   }
 }
 
-function rollDice(state: GameState, deps: EngineDeps): EngineResult {
+function rollDice(state: GameState, deps: EngineDeps): Accepted {
   const player = currentPlayer(state);
 
   const [a, b] = deps.dice.roll();
@@ -59,28 +79,70 @@ function rollDice(state: GameState, deps: EngineDeps): EngineResult {
   const tile = tileAt(to);
   events.push(...eventsForTile(tile, player.id, to));
 
-  return { state: withPlayerPosition(state, player.id, to), events };
+  return {
+    status: "accepted",
+    state: withPlayer(state, player.id, { position: to }),
+    events,
+  };
 }
 
-function currentPlayer(state: GameState): Player {
-  const player = state.players.find((p) => p.id === state.currentPlayerId);
+function buyProperty(state: GameState): Reduction {
+  const player = currentPlayer(state);
+  const tile = tileAt(player.position);
 
-  if (player === undefined) {
-    throw new Error(`Current player not found: ${state.currentPlayerId}`);
+  if (tile.kind !== "property") {
+    return { status: "rejected", reason: "NotOnAProperty" };
   }
-  return player;
+
+  if (state.ownership.has(player.position)) {
+    return { status: "rejected", reason: "AlreadyOwned" };
+  }
+
+  if (player.balance < tile.price) {
+    return { status: "rejected", reason: "InsufficientFunds" };
+  }
+
+  const paid = withPlayer(state, player.id, {
+    balance: player.balance - tile.price,
+  });
+
+  return {
+    status: "accepted",
+    state: withOwnership(paid, player.position, player.id),
+    events: [
+      {
+        type: "PropertyBought",
+        playerId: player.id,
+        position: player.position,
+      },
+    ],
+  };
 }
 
-function withPlayerPosition(
+function withPlayer(
   state: GameState,
   playerId: PlayerId,
-  position: BoardPosition,
+  patch: Partial<Omit<Player, "id">>,
 ): GameState {
   return {
     ...state,
     players: state.players.map((p) =>
-      p.id === playerId ? { ...p, position } : p,
+      p.id === playerId ? { ...p, ...patch } : p,
     ),
+  };
+}
+
+function withOwnership(
+  state: GameState,
+  position: BoardPosition,
+  playerId: PlayerId,
+): GameState {
+  const newOwnership = new Map(state.ownership);
+
+  newOwnership.set(position, playerId);
+  return {
+    ...state,
+    ownership: newOwnership,
   };
 }
 

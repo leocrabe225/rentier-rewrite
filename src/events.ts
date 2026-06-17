@@ -13,4 +13,9 @@ export type GameEvent =
       readonly type: "LandedOnProperty";
       readonly playerId: PlayerId;
       readonly position: BoardPosition;
+    }
+  | {
+      readonly type: "PropertyBought";
+      readonly playerId: PlayerId;
+      readonly position: BoardPosition;
     };
