@@ -192,6 +192,78 @@ describe("RollDice", () => {
     const p1 = currentPlayer(result.state);
     expect(p1.balance).toBe(STARTING_BALANCE);
   });
+
+  it("doubles rent when the owner holds the whole color group", () => {
+    const tile = tileAt(boardPosition(2));
+    if (tile.kind !== "property") throw new Error("expected a property at 2");
+
+    const state: GameState = {
+      players: [
+        makePlayer({ id: "p1", balance: 1000 }),
+        makePlayer({ id: "p2", balance: 2000 }),
+      ],
+      currentPlayerId: "p1",
+      ownership: new Map([
+        [boardPosition(1), "p2"],
+        [boardPosition(2), "p2"],
+      ]),
+    };
+
+    const dice: Dice = { roll: () => [1, 1] };
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    const doubled = tile.rent * 2;
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(0),
+        to: boardPosition(2),
+      },
+      { type: "RentPaid", from: "p1", to: "p2", amount: doubled },
+    ]);
+
+    const p1 = playerById(result.state, "p1");
+    const p2 = playerById(result.state, "p2");
+    expect(p1.balance).toBe(1000 - doubled);
+    expect(p2.balance).toBe(2000 + doubled);
+  });
+
+  it("charges single rent when the owner holds only part of the color group", () => {
+    const tile = tileAt(boardPosition(2));
+    if (tile.kind !== "property") throw new Error("expected a property at 2");
+
+    const state: GameState = {
+      players: [
+        makePlayer({ id: "p1", balance: 1000 }),
+        makePlayer({ id: "p2", balance: 2000 }),
+      ],
+      currentPlayerId: "p1",
+      ownership: new Map([[boardPosition(2), "p2"]]),
+    };
+
+    const dice: Dice = { roll: () => [1, 1] };
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(0),
+        to: boardPosition(2),
+      },
+      { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
+    ]);
+
+    const p1 = playerById(result.state, "p1");
+    const p2 = playerById(result.state, "p2");
+    expect(p1.balance).toBe(1000 - tile.rent);
+    expect(p2.balance).toBe(2000 + tile.rent);
+  });
 });
 
 describe("BuyProperty", () => {

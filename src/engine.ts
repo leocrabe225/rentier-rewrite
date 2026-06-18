@@ -12,8 +12,8 @@ import {
   boardPosition,
   type BoardPosition,
 } from "./domain/position";
-import type { Tile } from "./domain/tiles";
-import { tileAt } from "./domain/board";
+import type { PropertyColor } from "./domain/tiles";
+import { groupPositions, tileAt } from "./domain/board";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
@@ -176,11 +176,12 @@ function applyLanding(
         };
       }
 
+      const monopolyFactor = ownsWholeGroup(state, owner, tile.color) ? 2 : 1;
+      const rent = tile.rent * monopolyFactor;
+
       return {
-        state: transfer(state, playerId, owner, tile.rent),
-        events: [
-          { type: "RentPaid", from: playerId, to: owner, amount: tile.rent },
-        ],
+        state: transfer(state, playerId, owner, rent),
+        events: [{ type: "RentPaid", from: playerId, to: owner, amount: rent }],
       };
     }
     default:
@@ -207,6 +208,16 @@ function transfer(
   );
 
   return newState;
+}
+
+function ownsWholeGroup(
+  state: GameState,
+  owner: PlayerId,
+  color: PropertyColor,
+): boolean {
+  return groupPositions(color).every(
+    (pos) => state.ownership.get(pos) === owner,
+  );
 }
 
 function assertNever(value: never): never {
