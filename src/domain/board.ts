@@ -10,6 +10,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "pink",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -17,6 +18,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "pink",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -24,6 +26,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -31,6 +34,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -38,6 +42,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "lime",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -45,6 +50,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -52,6 +58,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "lime",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -59,6 +66,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "lime",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -66,6 +74,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -73,6 +82,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "orange",
+    costPerLevel: 1000,
   },
   {
     kind: "property",
@@ -80,6 +90,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "orange",
+    costPerLevel: 1000,
   },
   {
     kind: "property",
@@ -87,6 +98,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "orange",
+    costPerLevel: 1000,
   },
   {
     kind: "property",
@@ -94,6 +106,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -101,6 +114,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "purple",
+    costPerLevel: 1000,
   },
   {
     kind: "property",
@@ -108,6 +122,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -115,6 +130,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "purple",
+    costPerLevel: 1000,
   },
   {
     kind: "property",
@@ -122,6 +138,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "purple",
+    costPerLevel: 1000,
   },
   {
     kind: "property",
@@ -129,6 +146,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -136,6 +154,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "red",
+    costPerLevel: 1500,
   },
   {
     kind: "property",
@@ -143,6 +162,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -150,6 +170,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "red",
+    costPerLevel: 1500,
   },
   {
     kind: "property",
@@ -157,6 +178,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "red",
+    costPerLevel: 1500,
   },
   {
     kind: "property",
@@ -164,6 +186,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -171,6 +194,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "yellow",
+    costPerLevel: 1500,
   },
   {
     kind: "property",
@@ -178,6 +202,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "yellow",
+    costPerLevel: 1500,
   },
   {
     kind: "property",
@@ -185,6 +210,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "yellow",
+    costPerLevel: 1500,
   },
   {
     kind: "property",
@@ -192,6 +218,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -199,6 +226,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "brown",
+    costPerLevel: 2000,
   },
   {
     kind: "property",
@@ -206,6 +234,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "brown",
+    costPerLevel: 2000,
   },
   {
     kind: "property",
@@ -213,6 +242,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "brown",
+    costPerLevel: 2000,
   },
   {
     kind: "property",
@@ -220,6 +250,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -227,6 +258,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -234,6 +266,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 2000,
   },
   {
     kind: "property",
@@ -241,6 +274,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 500,
   },
   {
     kind: "property",
@@ -248,6 +282,7 @@ const board: ReadonlyArray<Tile> = [
     price: 500,
     rent: 100,
     color: "darkblue",
+    costPerLevel: 2000,
   },
 ];
 

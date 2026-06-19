@@ -16,4 +16,5 @@ export type Tile =
       readonly color: PropertyColor;
       readonly price: number;
       readonly rent: number;
+      readonly costPerLevel: number;
     };

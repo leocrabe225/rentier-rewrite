@@ -8,8 +8,9 @@ import {
   type Player,
 } from "./domain/state";
 import { tileAt } from "./domain/board";
+import { improvementLevel } from "./domain/improvementLevel";
 
-const STARTING_BALANCE = 1500;
+const STARTING_BALANCE = 15000;
 
 const noDice: Dice = {
   roll: () => {
@@ -20,11 +21,7 @@ const noDice: Dice = {
 describe("RollDice", () => {
   it("emits Moved with the new position when the player does not pass GO", () => {
     // Arrange
-    const state: GameState = {
-      players: [makePlayer({})],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    const state = makeState();
 
     const dice: Dice = { roll: () => [3, 4] };
 
@@ -49,11 +46,9 @@ describe("RollDice", () => {
 
   it("emits PassedGo when player passes GO", () => {
     // Arrange
-    const state: GameState = {
+    const state = makeState({
       players: [makePlayer({ position: boardPosition(BOARD_SIZE - 1) })],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    });
 
     const dice: Dice = { roll: () => [3, 4] };
 
@@ -79,11 +74,9 @@ describe("RollDice", () => {
 
   it("emits PassedGo when player lands on GO", () => {
     // Arrange
-    const state: GameState = {
+    const state = makeState({
       players: [makePlayer({ position: boardPosition(BOARD_SIZE - 2) })],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    });
 
     const dice: Dice = { roll: () => [1, 1] };
 
@@ -108,11 +101,7 @@ describe("RollDice", () => {
 
   it("emits LandedOnProperty when the player lands on a property", () => {
     // Arrange
-    const state: GameState = {
-      players: [makePlayer({})],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    const state = makeState({});
 
     const dice: Dice = { roll: () => [1, 1] };
 
@@ -136,14 +125,13 @@ describe("RollDice", () => {
     const tile = tileAt(boardPosition(5));
     if (tile.kind !== "property") throw new Error("expected a property at 5");
 
-    const state: GameState = {
+    const state = makeState({
       players: [
         makePlayer({ id: "p1", balance: 1000 }),
         makePlayer({ id: "p2", balance: 2000 }),
       ],
-      currentPlayerId: "p1",
       ownership: new Map([[boardPosition(5), "p2"]]),
-    };
+    });
 
     const dice: Dice = { roll: () => [2, 3] };
 
@@ -168,11 +156,9 @@ describe("RollDice", () => {
   });
 
   it("charges no rent when landing on your own property", () => {
-    const state: GameState = {
-      players: [makePlayer({ id: "p1" })],
-      currentPlayerId: "p1",
+    const state = makeState({
       ownership: new Map([[boardPosition(5), "p1"]]),
-    };
+    });
 
     const dice: Dice = { roll: () => [2, 3] };
 
@@ -197,17 +183,16 @@ describe("RollDice", () => {
     const tile = tileAt(boardPosition(2));
     if (tile.kind !== "property") throw new Error("expected a property at 2");
 
-    const state: GameState = {
+    const state = makeState({
       players: [
         makePlayer({ id: "p1", balance: 1000 }),
         makePlayer({ id: "p2", balance: 2000 }),
       ],
-      currentPlayerId: "p1",
       ownership: new Map([
         [boardPosition(1), "p2"],
         [boardPosition(2), "p2"],
       ]),
-    };
+    });
 
     const dice: Dice = { roll: () => [1, 1] };
     const result = reduce(state, { type: "RollDice" }, { dice });
@@ -235,14 +220,13 @@ describe("RollDice", () => {
     const tile = tileAt(boardPosition(2));
     if (tile.kind !== "property") throw new Error("expected a property at 2");
 
-    const state: GameState = {
+    const state = makeState({
       players: [
         makePlayer({ id: "p1", balance: 1000 }),
         makePlayer({ id: "p2", balance: 2000 }),
       ],
-      currentPlayerId: "p1",
       ownership: new Map([[boardPosition(2), "p2"]]),
-    };
+    });
 
     const dice: Dice = { roll: () => [1, 1] };
     const result = reduce(state, { type: "RollDice" }, { dice });
@@ -264,15 +248,85 @@ describe("RollDice", () => {
     expect(p1.balance).toBe(1000 - tile.rent);
     expect(p2.balance).toBe(2000 + tile.rent);
   });
+
+  it("scales rent by improvement level", () => {
+    const tile = tileAt(boardPosition(5));
+    if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+    const state = makeState({
+      players: [
+        makePlayer({ id: "p1", balance: 1000 }),
+        makePlayer({ id: "p2", balance: 2000 }),
+      ],
+      ownership: new Map([[boardPosition(5), "p2"]]),
+      improvements: new Map([[boardPosition(5), improvementLevel(3)]]),
+    });
+
+    const dice: Dice = { roll: () => [2, 3] };
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    const rent = tile.rent * 3;
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(0),
+        to: boardPosition(5),
+      },
+      { type: "RentPaid", from: "p1", to: "p2", amount: rent },
+    ]);
+
+    const p1 = playerById(result.state, "p1");
+    const p2 = playerById(result.state, "p2");
+    expect(p1.balance).toBe(1000 - rent);
+    expect(p2.balance).toBe(2000 + rent);
+  });
+
+  it("scales rent by improvement level * monopolyFactor", () => {
+    const tile = tileAt(boardPosition(5));
+    if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+    const state = makeState({
+      players: [
+        makePlayer({ id: "p1", balance: 1000 }),
+        makePlayer({ id: "p2", balance: 2000 }),
+      ],
+      ownership: new Map([
+        [boardPosition(5), "p2"],
+        [boardPosition(7), "p2"],
+        [boardPosition(8), "p2"],
+      ]),
+      improvements: new Map([[boardPosition(5), improvementLevel(3)]]),
+    });
+
+    const dice: Dice = { roll: () => [2, 3] };
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    const rent = tile.rent * 3 * 2;
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(0),
+        to: boardPosition(5),
+      },
+      { type: "RentPaid", from: "p1", to: "p2", amount: rent },
+    ]);
+
+    const p1 = playerById(result.state, "p1");
+    const p2 = playerById(result.state, "p2");
+    expect(p1.balance).toBe(1000 - rent);
+    expect(p2.balance).toBe(2000 + rent);
+  });
 });
 
 describe("BuyProperty", () => {
   it("rejects BuyProperty when the player is not standing on a property", () => {
-    const state: GameState = {
-      players: [makePlayer({})], // Standing on GO
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    const state = makeState({});
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
@@ -280,11 +334,9 @@ describe("BuyProperty", () => {
   });
 
   it("buys the unowned property the player is standing on", () => {
-    const state: GameState = {
+    const state = makeState({
       players: [makePlayer({ position: boardPosition(1) })],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    });
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
@@ -297,11 +349,9 @@ describe("BuyProperty", () => {
   });
 
   it("deducts the property's price from the buyer's balance", () => {
-    const state: GameState = {
+    const state = makeState({
       players: [makePlayer({ position: boardPosition(1) })],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    });
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
@@ -318,13 +368,11 @@ describe("BuyProperty", () => {
     const tile = tileAt(boardPosition(1));
     if (tile.kind !== "property") throw new Error("expected a property at 1");
 
-    const state: GameState = {
+    const state = makeState({
       players: [
         makePlayer({ position: boardPosition(1), balance: tile.price - 1 }),
       ],
-      currentPlayerId: "p1",
-      ownership: new Map(),
-    };
+    });
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
@@ -332,16 +380,187 @@ describe("BuyProperty", () => {
   });
 
   it("rejects BuyProperty when the property is already owned", () => {
-    const state: GameState = {
+    const state = makeState({
       // balance: 0 because "AlreadyOwned" should be checked before "Insufficient balance"
       players: [makePlayer({ position: boardPosition(1), balance: 0 })],
-      currentPlayerId: "p1",
       ownership: new Map([[boardPosition(1), "p2"]]),
-    };
+    });
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
     expect(result).toEqual({ status: "rejected", reason: "AlreadyOwned" });
+  });
+});
+
+describe("ImproveProperty", () => {
+  it("raises an owned property to the requested level", () => {
+    const state = makeState({
+      ownership: new Map([[boardPosition(5), "p1"]]),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(4),
+      },
+      { dice: noDice },
+    );
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "PropertyImproved",
+        playerId: "p1",
+        position: boardPosition(5),
+        level: improvementLevel(4),
+      },
+    ]);
+    expect(result.state.improvements.get(boardPosition(5))).toBe(4);
+  });
+
+  it("rejects improving a tile that is not a property", () => {
+    const state = makeState({});
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(0),
+        toLevel: improvementLevel(4),
+      },
+      { dice: noDice },
+    );
+
+    expect(result).toEqual({ status: "rejected", reason: "NotAProperty" });
+  });
+
+  it("rejects improving a property the player does not own", () => {
+    const state = makeState({
+      ownership: new Map([[boardPosition(5), "p2"]]),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(4),
+      },
+      { dice: noDice },
+    );
+
+    expect(result).toEqual({ status: "rejected", reason: "NotOwner" });
+  });
+
+  it("deducts the improvement cost from the player's balance", () => {
+    const tile = tileAt(boardPosition(5));
+    if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+    const state = makeState({
+      ownership: new Map([[boardPosition(5), "p1"]]),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(4),
+      },
+      { dice: noDice },
+    );
+
+    assertAccepted(result);
+
+    const cost = tile.costPerLevel * (4 - 1); // rate * levels added, from default 1
+    const p1 = playerById(result.state, "p1");
+    expect(p1.balance).toBe(STARTING_BALANCE - cost);
+  });
+
+  it("rejects improving not above the current level", () => {
+    const state = makeState({
+      ownership: new Map([[boardPosition(5), "p1"]]),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(1),
+      },
+      { dice: noDice },
+    );
+
+    expect(result).toEqual({ status: "rejected", reason: "NotAnUpgrade" });
+  });
+
+  it("rejects a non-property before judging whether it's an upgrade", () => {
+    const state = makeState({});
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(0),
+        toLevel: improvementLevel(1),
+      },
+      { dice: noDice },
+    );
+
+    expect(result).toEqual({ status: "rejected", reason: "NotAProperty" });
+  });
+
+  it("rejects improving when the player can't afford the cost", () => {
+    const tile = tileAt(boardPosition(5));
+    if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+    const cost = tile.costPerLevel * (4 - 1);
+    const state = makeState({
+      players: [makePlayer({ balance: cost - 1 })],
+      ownership: new Map([[boardPosition(5), "p1"]]),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(4),
+      },
+      { dice: noDice },
+    );
+
+    expect(result).toEqual({ status: "rejected", reason: "InsufficientFunds" });
+  });
+
+  it("deducts the improvement cost from the player's balance with an already-improved property", () => {
+    const tile = tileAt(boardPosition(5));
+    if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+    const state = makeState({
+      ownership: new Map([[boardPosition(5), "p1"]]),
+      improvements: new Map([[boardPosition(5), improvementLevel(2)]]),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(4),
+      },
+      { dice: noDice },
+    );
+
+    assertAccepted(result);
+
+    const cost = tile.costPerLevel * (4 - 2);
+    const p1 = playerById(result.state, "p1");
+    expect(p1.balance).toBe(STARTING_BALANCE - cost);
   });
 });
 
@@ -351,6 +570,16 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     id: "p1",
     position: boardPosition(0),
     balance: STARTING_BALANCE,
+    ...overrides,
+  };
+}
+
+function makeState(overrides: Partial<GameState> = {}): GameState {
+  return {
+    players: [makePlayer({})],
+    currentPlayerId: "p1",
+    ownership: new Map(),
+    improvements: new Map(),
     ...overrides,
   };
 }

@@ -6,6 +6,7 @@ import {
   type Player,
   currentPlayer,
   playerById,
+  getImprovementLevel,
 } from "./domain/state";
 import {
   BOARD_SIZE,
@@ -14,6 +15,7 @@ import {
 } from "./domain/position";
 import type { PropertyColor } from "./domain/tiles";
 import { groupPositions, tileAt } from "./domain/board";
+import { type ImprovementLevel } from "./domain/improvementLevel";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
@@ -33,7 +35,10 @@ export interface EngineResult {
 export type RejectionReason =
   | "NotOnAProperty"
   | "InsufficientFunds"
-  | "AlreadyOwned";
+  | "AlreadyOwned"
+  | "NotAProperty"
+  | "NotOwner"
+  | "NotAnUpgrade";
 
 export interface Accepted extends EngineResult {
   readonly status: "accepted";
@@ -55,6 +60,8 @@ export function reduce(
       return rollDice(state, deps);
     case "BuyProperty":
       return buyProperty(state);
+    case "ImproveProperty":
+      return improveProperty(state, command);
     default:
       return assertNever(command);
   }
@@ -122,16 +129,62 @@ function buyProperty(state: GameState): Reduction {
   };
 }
 
+function improveProperty(
+  state: GameState,
+  command: Extract<Command, { type: "ImproveProperty" }>,
+): Reduction {
+  const tile = tileAt(command.position);
+  const player = currentPlayer(state);
+
+  if (tile.kind !== "property") {
+    return { status: "rejected", reason: "NotAProperty" };
+  }
+
+  if (state.ownership.get(command.position) !== player.id) {
+    return { status: "rejected", reason: "NotOwner" };
+  }
+
+  const currentLevel = getImprovementLevel(state, command.position);
+  if (command.toLevel <= currentLevel) {
+    return { status: "rejected", reason: "NotAnUpgrade" };
+  }
+
+  const cost = tile.costPerLevel * (command.toLevel - currentLevel);
+
+  if (cost > player.balance) {
+    return { status: "rejected", reason: "InsufficientFunds" };
+  }
+
+  return {
+    status: "accepted",
+    state: withPlayer(
+      withImprovement(state, command.position, command.toLevel),
+      player.id,
+      { balance: player.balance - cost },
+    ),
+    events: [
+      {
+        type: "PropertyImproved",
+        playerId: player.id,
+        position: command.position,
+        level: command.toLevel,
+      },
+    ],
+  };
+}
+
 function withPlayer(
   state: GameState,
   playerId: PlayerId,
   patch: Partial<Omit<Player, "id">>,
 ): GameState {
+  const players = state.players.map((p) =>
+    p.id === playerId ? { ...p, ...patch } : p,
+  );
+
   return {
     ...state,
-    players: state.players.map((p) =>
-      p.id === playerId ? { ...p, ...patch } : p,
-    ),
+    players,
   };
 }
 
@@ -140,12 +193,26 @@ function withOwnership(
   position: BoardPosition,
   playerId: PlayerId,
 ): GameState {
-  const newOwnership = new Map(state.ownership);
+  const ownership = new Map(state.ownership);
 
-  newOwnership.set(position, playerId);
+  ownership.set(position, playerId);
   return {
     ...state,
-    ownership: newOwnership,
+    ownership,
+  };
+}
+
+function withImprovement(
+  state: GameState,
+  position: BoardPosition,
+  toLevel: ImprovementLevel,
+): GameState {
+  const improvements = new Map(state.improvements);
+
+  improvements.set(position, toLevel);
+  return {
+    ...state,
+    improvements,
   };
 }
 
@@ -177,7 +244,8 @@ function applyLanding(
       }
 
       const monopolyFactor = ownsWholeGroup(state, owner, tile.color) ? 2 : 1;
-      const rent = tile.rent * monopolyFactor;
+      const level = getImprovementLevel(state, position);
+      const rent = tile.rent * level * monopolyFactor;
 
       return {
         state: transfer(state, playerId, owner, rent),

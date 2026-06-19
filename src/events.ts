@@ -1,3 +1,4 @@
+import type { ImprovementLevel } from "./domain/improvementLevel";
 import type { BoardPosition } from "./domain/position";
 import type { PlayerId } from "./domain/state";
 
@@ -24,4 +25,10 @@ export type GameEvent =
       readonly from: PlayerId;
       readonly to: PlayerId;
       readonly amount: number;
+    }
+  | {
+      readonly type: "PropertyImproved";
+      readonly playerId: PlayerId;
+      readonly position: BoardPosition;
+      readonly level: ImprovementLevel;
     };
