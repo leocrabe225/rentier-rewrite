@@ -17,4 +17,10 @@ export type Tile =
       readonly price: number;
       readonly rent: number;
       readonly costPerLevel: number;
+    }
+  | {
+      readonly kind: "go-to-jail";
+    }
+  | {
+      readonly kind: "jail";
     };

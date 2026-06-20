@@ -6,8 +6,19 @@ import type { BoardPosition } from "./position";
 
 export type PlayerId = string; // Might brand this later
 
+export type JailedStatus = {
+  readonly kind: "jailed";
+  readonly failedAttempts: number;
+};
+export type FreeStatus = {
+  readonly kind: "free";
+};
+
+export type PlayerStatus = FreeStatus | JailedStatus;
+
 export interface Player {
   readonly id: PlayerId;
+  readonly status: PlayerStatus;
   readonly position: BoardPosition;
   readonly balance: number;
 }

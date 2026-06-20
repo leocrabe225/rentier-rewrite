@@ -15,6 +15,14 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly position: BoardPosition;
     }
+  | { readonly type: "SentToJail"; readonly playerId: PlayerId }
+  | { readonly type: "RemainedInJail"; readonly playerId: PlayerId }
+  | { readonly type: "FreedFromJail"; readonly playerId: PlayerId }
+  | {
+      readonly type: "JailFinePaid";
+      readonly playerId: PlayerId;
+      readonly amount: number;
+    }
   | {
       readonly type: "PropertyBought";
       readonly playerId: PlayerId;

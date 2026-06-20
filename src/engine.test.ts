@@ -7,10 +7,9 @@ import {
   type GameState,
   type Player,
 } from "./domain/state";
-import { tileAt } from "./domain/board";
+import { JAIL_POSITION, tileAt } from "./domain/board";
 import { improvementLevel } from "./domain/improvementLevel";
-
-const STARTING_BALANCE = 15000;
+import { JAIL_FINE, MAX_JAIL_ATTEMPTS, STARTING_BALANCE } from "./domain/rules";
 
 const noDice: Dice = {
   roll: () => {
@@ -322,6 +321,152 @@ describe("RollDice", () => {
     expect(p1.balance).toBe(1000 - rent);
     expect(p2.balance).toBe(2000 + rent);
   });
+
+  it("sends the player to jail when they land on the go-to-jail tile", () => {
+    const state = makeState({
+      players: [makePlayer({ position: boardPosition(20) })],
+    });
+
+    const dice: Dice = { roll: () => [3, 4] };
+
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(20),
+        to: boardPosition(27),
+      },
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(27),
+        to: boardPosition(JAIL_POSITION),
+      },
+      { type: "SentToJail", playerId: "p1" },
+    ]);
+
+    const p1 = currentPlayer(result.state);
+    expect(p1.status).toEqual({ kind: "jailed", failedAttempts: 0 });
+    expect(tileAt(p1.position)).toEqual({ kind: "jail" });
+  });
+
+  it("does not jail a player who is just visiting the jail tile", () => {
+    const state = makeState({});
+
+    const dice: Dice = { roll: () => [4, 5] };
+
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(0),
+        to: boardPosition(9),
+      },
+    ]);
+
+    const p1 = currentPlayer(result.state);
+    expect(p1.status).toEqual({ kind: "free" });
+    expect(tileAt(p1.position)).toEqual({ kind: "jail" });
+  });
+
+  it("keeps a jailed player when the roll is not doubles", () => {
+    const state = makeState({
+      players: [
+        makePlayer({
+          status: { kind: "jailed", failedAttempts: 0 },
+          position: JAIL_POSITION,
+        }),
+      ],
+    });
+
+    const dice: Dice = { roll: () => [4, 5] };
+
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "RemainedInJail",
+        playerId: "p1",
+      },
+    ]);
+
+    const p1 = currentPlayer(result.state);
+    expect(p1.status).toEqual({ kind: "jailed", failedAttempts: 1 });
+    expect(tileAt(p1.position)).toEqual({ kind: "jail" });
+  });
+
+  it("frees a jailed player when the roll is doubles", () => {
+    const state = makeState({
+      players: [
+        makePlayer({
+          status: { kind: "jailed", failedAttempts: 0 },
+          position: JAIL_POSITION,
+        }),
+      ],
+    });
+
+    const dice: Dice = { roll: () => [5, 5] };
+
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "FreedFromJail",
+        playerId: "p1",
+      },
+      {
+        type: "Moved",
+        playerId: "p1",
+        from: boardPosition(9),
+        to: boardPosition(19),
+      },
+      { type: "LandedOnProperty", playerId: "p1", position: boardPosition(19) },
+    ]);
+
+    const p1 = currentPlayer(result.state);
+    expect(p1.status).toEqual({ kind: "free" });
+    expect(p1.position).toEqual(boardPosition(19));
+  });
+
+  it("frees a jailed player after its third failed roll", () => {
+    const state = makeState({
+      players: [
+        makePlayer({
+          status: { kind: "jailed", failedAttempts: MAX_JAIL_ATTEMPTS - 1 },
+          position: JAIL_POSITION,
+        }),
+      ],
+    });
+
+    const dice: Dice = { roll: () => [4, 5] };
+
+    const result = reduce(state, { type: "RollDice" }, { dice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      {
+        type: "FreedFromJail",
+        playerId: "p1",
+      },
+    ]);
+
+    const p1 = currentPlayer(result.state);
+    expect(p1.status).toEqual({ kind: "free" });
+    expect(p1.position).toEqual(boardPosition(9));
+  });
 });
 
 describe("BuyProperty", () => {
@@ -564,10 +709,70 @@ describe("ImproveProperty", () => {
   });
 });
 
+describe("PayJailFine", () => {
+  it("frees a jailed player who pays the fine, charging 500", () => {
+    const state = makeState({
+      players: [
+        makePlayer({
+          status: { kind: "jailed", failedAttempts: 0 },
+          position: JAIL_POSITION,
+          balance: 1000,
+        }),
+      ],
+    });
+
+    const result = reduce(state, { type: "PayJailFine" }, { dice: noDice });
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      { type: "JailFinePaid", playerId: "p1", amount: JAIL_FINE },
+    ]);
+
+    const p1 = currentPlayer(result.state);
+    expect(p1.status).toEqual({ kind: "free" });
+    expect(p1.balance).toBe(1000 - JAIL_FINE);
+    expect(p1.position).toBe(JAIL_POSITION);
+  });
+
+  it("rejects a free player", () => {
+    const state = makeState({
+      players: [
+        makePlayer({
+          status: { kind: "free" },
+          position: JAIL_POSITION,
+          balance: 1000,
+        }),
+      ],
+    });
+
+    const result = reduce(state, { type: "PayJailFine" }, { dice: noDice });
+
+    expect(result).toEqual({ status: "rejected", reason: "NotInJail" });
+  });
+
+  it("rejects a player that doesn't have enough money in the balance", () => {
+    const state = makeState({
+      players: [
+        makePlayer({
+          status: { kind: "jailed", failedAttempts: 0 },
+          position: JAIL_POSITION,
+          balance: JAIL_FINE - 1,
+        }),
+      ],
+    });
+
+    const result = reduce(state, { type: "PayJailFine" }, { dice: noDice });
+
+    expect(result).toEqual({ status: "rejected", reason: "InsufficientFunds" });
+  });
+});
+
 // No Omit<id> here, it's a default constructor helper, not a patcher.
 function makePlayer(overrides: Partial<Player> = {}): Player {
   return {
     id: "p1",
+    status: { kind: "free" },
     position: boardPosition(0),
     balance: STARTING_BALANCE,
     ...overrides,

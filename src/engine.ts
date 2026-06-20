@@ -7,6 +7,7 @@ import {
   currentPlayer,
   playerById,
   getImprovementLevel,
+  type JailedStatus,
 } from "./domain/state";
 import {
   BOARD_SIZE,
@@ -14,14 +15,17 @@ import {
   type BoardPosition,
 } from "./domain/position";
 import type { PropertyColor } from "./domain/tiles";
-import { groupPositions, tileAt } from "./domain/board";
+import { groupPositions, JAIL_POSITION, tileAt } from "./domain/board";
 import { type ImprovementLevel } from "./domain/improvementLevel";
+import { JAIL_FINE, MAX_JAIL_ATTEMPTS } from "./domain/rules";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
 export interface Dice {
   roll(): DiceRoll;
 }
+
+type JailedPlayer = Player & { readonly status: JailedStatus };
 
 export interface EngineDeps {
   readonly dice: Dice;
@@ -38,7 +42,8 @@ export type RejectionReason =
   | "AlreadyOwned"
   | "NotAProperty"
   | "NotOwner"
-  | "NotAnUpgrade";
+  | "NotAnUpgrade"
+  | "NotInJail";
 
 export interface Accepted extends EngineResult {
   readonly status: "accepted";
@@ -62,6 +67,8 @@ export function reduce(
       return buyProperty(state);
     case "ImproveProperty":
       return improveProperty(state, command);
+    case "PayJailFine":
+      return payJailFine(state);
     default:
       return assertNever(command);
   }
@@ -70,30 +77,11 @@ export function reduce(
 function rollDice(state: GameState, deps: EngineDeps): Accepted {
   const player = currentPlayer(state);
 
-  const [a, b] = deps.dice.roll();
-  const sum = a + b;
-
-  const from = player.position;
-  const raw = from + sum;
-  const to = boardPosition(raw % BOARD_SIZE);
-
-  const moved = withPlayer(state, player.id, { position: to });
-
-  const events: GameEvent[] = [];
-
-  events.push({ type: "Moved", playerId: player.id, from, to });
-  if (raw >= BOARD_SIZE) {
-    events.push({ type: "PassedGo", playerId: player.id });
+  if (isJailed(player)) {
+    return rollForJail(state, player, deps);
   }
 
-  const landing = applyLanding(moved, player.id, to);
-  events.push(...landing.events);
-
-  return {
-    status: "accepted",
-    state: landing.state,
-    events,
-  };
+  return move(state, deps);
 }
 
 function buyProperty(state: GameState): Reduction {
@@ -173,6 +161,96 @@ function improveProperty(
   };
 }
 
+function payJailFine(state: GameState): Reduction {
+  const player = currentPlayer(state);
+
+  if (!isJailed(player)) {
+    return { status: "rejected", reason: "NotInJail" };
+  }
+
+  if (player.balance < JAIL_FINE) {
+    return { status: "rejected", reason: "InsufficientFunds" };
+  }
+
+  return {
+    status: "accepted",
+    state: withPlayer(state, player.id, {
+      balance: player.balance - JAIL_FINE,
+      status: { kind: "free" },
+    }),
+    events: [{ type: "JailFinePaid", playerId: player.id, amount: JAIL_FINE }],
+  };
+}
+
+function move(state: GameState, deps: EngineDeps): Accepted {
+  const player = currentPlayer(state);
+  const [a, b] = deps.dice.roll();
+  const sum = a + b;
+
+  const from = player.position;
+  const raw = from + sum;
+  const to = boardPosition(raw % BOARD_SIZE);
+
+  const moved = withPlayer(state, player.id, { position: to });
+
+  const events: GameEvent[] = [];
+
+  events.push({ type: "Moved", playerId: player.id, from, to });
+  if (raw >= BOARD_SIZE) {
+    events.push({ type: "PassedGo", playerId: player.id });
+  }
+
+  const landing = applyLanding(moved, player.id, to);
+  events.push(...landing.events);
+
+  return {
+    status: "accepted",
+    state: landing.state,
+    events,
+  };
+}
+
+function rollForJail(
+  state: GameState,
+  player: JailedPlayer,
+  deps: EngineDeps,
+): Accepted {
+  const [a, b] = deps.dice.roll();
+
+  if (a === b) {
+    const newState = withPlayer(state, player.id, { status: { kind: "free" } });
+    const events: GameEvent[] = [
+      { type: "FreedFromJail", playerId: player.id },
+    ];
+
+    const moved = move(newState, deps);
+    events.push(...moved.events);
+    return {
+      state: moved.state,
+      events: events,
+      status: "accepted",
+    };
+  }
+
+  const failedAttempts = player.status.failedAttempts + 1;
+
+  if (failedAttempts < MAX_JAIL_ATTEMPTS) {
+    return {
+      state: withPlayer(state, player.id, {
+        status: { kind: "jailed", failedAttempts: failedAttempts },
+      }),
+      events: [{ type: "RemainedInJail", playerId: player.id }],
+      status: "accepted",
+    };
+  }
+
+  return {
+    state: withPlayer(state, player.id, { status: { kind: "free" } }),
+    events: [{ type: "FreedFromJail", playerId: player.id }],
+    status: "accepted",
+  };
+}
+
 function withPlayer(
   state: GameState,
   playerId: PlayerId,
@@ -216,6 +294,10 @@ function withImprovement(
   };
 }
 
+function isJailed(player: Player): player is JailedPlayer {
+  return player.status.kind === "jailed";
+}
+
 function applyLanding(
   state: GameState,
   playerId: PlayerId,
@@ -252,6 +334,19 @@ function applyLanding(
         events: [{ type: "RentPaid", from: playerId, to: owner, amount: rent }],
       };
     }
+    case "go-to-jail":
+      return {
+        state: withPlayer(state, playerId, {
+          position: JAIL_POSITION,
+          status: { kind: "jailed", failedAttempts: 0 },
+        }),
+        events: [
+          { type: "Moved", playerId, from: position, to: JAIL_POSITION },
+          { type: "SentToJail", playerId },
+        ],
+      };
+    case "jail":
+      return { state, events: [] };
     default:
       return assertNever(tile);
   }

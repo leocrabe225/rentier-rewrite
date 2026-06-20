@@ -1,6 +1,8 @@
 import { BOARD_SIZE, boardPosition, type BoardPosition } from "./position";
 import type { PropertyColor, Tile } from "./tiles";
 
+export const JAIL_POSITION = boardPosition(9);
+
 // Must have exactly BOARD_SIZE entries. Guarded by the "tile at every position" test
 const board: ReadonlyArray<Tile> = [
   { kind: "go" },
@@ -69,12 +71,7 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 500,
   },
   {
-    kind: "property",
-    name: "placeholder-9",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "jail",
   },
   {
     kind: "property",
@@ -213,12 +210,7 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 1500,
   },
   {
-    kind: "property",
-    name: "placeholder-27",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "go-to-jail",
   },
   {
     kind: "property",
