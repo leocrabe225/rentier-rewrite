@@ -39,4 +39,5 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly position: BoardPosition;
       readonly level: ImprovementLevel;
-    };
+    }
+  | { readonly type: "DrawnToFreeParking"; readonly playerId: PlayerId };

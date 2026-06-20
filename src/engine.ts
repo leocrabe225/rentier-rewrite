@@ -15,7 +15,12 @@ import {
   type BoardPosition,
 } from "./domain/position";
 import type { PropertyColor } from "./domain/tiles";
-import { groupPositions, JAIL_POSITION, tileAt } from "./domain/board";
+import {
+  FREE_PARKING_POSITION,
+  groupPositions,
+  JAIL_POSITION,
+  tileAt,
+} from "./domain/board";
 import { type ImprovementLevel } from "./domain/improvementLevel";
 import { JAIL_FINE, MAX_JAIL_ATTEMPTS } from "./domain/rules";
 
@@ -334,7 +339,7 @@ function applyLanding(
         events: [{ type: "RentPaid", from: playerId, to: owner, amount: rent }],
       };
     }
-    case "go-to-jail":
+    case "go-to-jail": {
       return {
         state: withPlayer(state, playerId, {
           position: JAIL_POSITION,
@@ -345,8 +350,31 @@ function applyLanding(
           { type: "SentToJail", playerId },
         ],
       };
+    }
     case "jail":
       return { state, events: [] };
+    case "freeParking": {
+      const shouldDraw = (p: Player) =>
+        !isJailed(p) && p.position !== FREE_PARKING_POSITION;
+
+      const events: GameEvent[] = state.players
+        .filter(shouldDraw)
+        .flatMap((p) => [
+          {
+            type: "Moved",
+            playerId: p.id,
+            from: p.position,
+            to: FREE_PARKING_POSITION,
+          },
+          { type: "DrawnToFreeParking", playerId: p.id },
+        ]);
+
+      const players: Player[] = state.players.map((p) =>
+        shouldDraw(p) ? { ...p, position: FREE_PARKING_POSITION } : p,
+      );
+
+      return { events, state: { ...state, players } };
+    }
     default:
       return assertNever(tile);
   }

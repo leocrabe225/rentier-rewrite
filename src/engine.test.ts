@@ -7,7 +7,7 @@ import {
   type GameState,
   type Player,
 } from "./domain/state";
-import { JAIL_POSITION, tileAt } from "./domain/board";
+import { FREE_PARKING_POSITION, JAIL_POSITION, tileAt } from "./domain/board";
 import { improvementLevel } from "./domain/improvementLevel";
 import { JAIL_FINE, MAX_JAIL_ATTEMPTS, STARTING_BALANCE } from "./domain/rules";
 
@@ -487,6 +487,228 @@ describe("RollDice", () => {
       const p1 = currentPlayer(result.state);
       expect(p1.status).toEqual({ kind: "free" });
       expect(p1.position).toEqual(boardPosition(9));
+    });
+  });
+
+  describe("Free Parking", () => {
+    it("lands a lone player with only the one Moved event", () => {
+      const state = makeState({
+        players: [makePlayer({ id: "p1", position: boardPosition(11) })],
+      });
+
+      const dice: Dice = { roll: () => [3, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(11),
+          to: FREE_PARKING_POSITION,
+        },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+    });
+
+    it("draws a free player onto the tile", () => {
+      const state = makeState({
+        players: [
+          makePlayer({ id: "p1", position: boardPosition(11) }),
+          makePlayer({ id: "p2", position: boardPosition(5) }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [3, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(11),
+          to: FREE_PARKING_POSITION,
+        },
+        {
+          type: "Moved",
+          playerId: "p2",
+          from: boardPosition(5),
+          to: FREE_PARKING_POSITION,
+        },
+        { type: "DrawnToFreeParking", playerId: "p2" },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      const p2 = playerById(result.state, "p2");
+      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
+    });
+
+    it("draws every other free player onto the tile", () => {
+      const state = makeState({
+        players: [
+          makePlayer({ id: "p1", position: boardPosition(11) }),
+          makePlayer({ id: "p2", position: boardPosition(5) }),
+          makePlayer({ id: "p3", position: boardPosition(2) }),
+          makePlayer({ id: "p4", position: boardPosition(8) }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [3, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(11),
+          to: FREE_PARKING_POSITION,
+        },
+        {
+          type: "Moved",
+          playerId: "p2",
+          from: boardPosition(5),
+          to: FREE_PARKING_POSITION,
+        },
+        { type: "DrawnToFreeParking", playerId: "p2" },
+        {
+          type: "Moved",
+          playerId: "p3",
+          from: boardPosition(2),
+          to: FREE_PARKING_POSITION,
+        },
+        { type: "DrawnToFreeParking", playerId: "p3" },
+        {
+          type: "Moved",
+          playerId: "p4",
+          from: boardPosition(8),
+          to: FREE_PARKING_POSITION,
+        },
+        { type: "DrawnToFreeParking", playerId: "p4" },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      const p2 = playerById(result.state, "p2");
+      const p3 = playerById(result.state, "p3");
+      const p4 = playerById(result.state, "p4");
+      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p3.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p4.position)).toEqual({ kind: "freeParking" });
+    });
+
+    it("leaves a jailed player in jail", () => {
+      const state = makeState({
+        players: [
+          makePlayer({ id: "p1", position: boardPosition(11) }),
+          makePlayer({
+            id: "p2",
+            position: JAIL_POSITION,
+            status: { kind: "jailed", failedAttempts: 0 },
+          }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [3, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(11),
+          to: FREE_PARKING_POSITION,
+        },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      const p2 = playerById(result.state, "p2");
+      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p2.position)).toEqual({ kind: "jail" });
+    });
+
+    it("does not re-move a player already standing on Free Parking", () => {
+      const state = makeState({
+        players: [
+          makePlayer({ id: "p1", position: boardPosition(11) }),
+          makePlayer({
+            id: "p2",
+            position: FREE_PARKING_POSITION,
+          }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [3, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(11),
+          to: FREE_PARKING_POSITION,
+        },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      const p2 = playerById(result.state, "p2");
+      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
+    });
+
+    it("collects no GO for a player drawn across a GO", () => {
+      const state = makeState({
+        players: [
+          makePlayer({ id: "p1", position: boardPosition(11) }),
+          makePlayer({
+            id: "p2",
+            position: boardPosition(30),
+          }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [3, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(11),
+          to: FREE_PARKING_POSITION,
+        },
+        {
+          type: "Moved",
+          playerId: "p2",
+          from: boardPosition(30),
+          to: FREE_PARKING_POSITION,
+        },
+        { type: "DrawnToFreeParking", playerId: "p2" },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      const p2 = playerById(result.state, "p2");
+      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
     });
   });
 });

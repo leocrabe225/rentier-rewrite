@@ -12,6 +12,10 @@ describe("board", () => {
     expect(tileAt(boardPosition(1)).kind).toBe("property");
   });
 
+  it("has Free Parking at position 18", () => {
+    expect(tileAt(boardPosition(18))).toEqual({ kind: "freeParking" });
+  });
+
   // Not just checking the array size allows to keep the array private
   it("has a tile at every board position", () => {
     for (let i = 0; i < BOARD_SIZE; i++) {

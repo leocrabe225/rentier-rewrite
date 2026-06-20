@@ -23,4 +23,7 @@ export type Tile =
     }
   | {
       readonly kind: "jail";
+    }
+  | {
+      readonly kind: "freeParking";
     };
