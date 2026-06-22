@@ -6,22 +6,26 @@ import type { BoardPosition } from "./position";
 
 export type PlayerId = string; // Might brand this later
 
-export type JailedStatus = {
-  readonly kind: "jailed";
-  readonly failedAttempts: number;
-};
-export type FreeStatus = {
-  readonly kind: "free";
-};
-
-export type PlayerStatus = FreeStatus | JailedStatus;
-
-export interface Player {
+interface PlayerCore {
   readonly id: PlayerId;
-  readonly status: PlayerStatus;
+}
+export interface InPlayFields extends PlayerCore {
   readonly position: BoardPosition;
   readonly balance: number;
 }
+
+export interface FreePlayer extends InPlayFields {
+  readonly kind: "free";
+}
+export interface JailedPlayer extends InPlayFields {
+  readonly kind: "jailed";
+  readonly failedAttempts: number;
+}
+export interface BankruptPlayer extends PlayerCore {
+  readonly kind: "bankrupt";
+}
+export type InPlayPlayer = FreePlayer | JailedPlayer;
+export type Player = InPlayPlayer | BankruptPlayer;
 
 export interface GameState {
   readonly players: ReadonlyArray<Player>;
@@ -39,6 +43,14 @@ export function playerById(state: GameState, id: PlayerId): Player {
 
   if (player === undefined) {
     throw new Error(`player not found: ${id}`);
+  }
+  return player;
+}
+
+export function inPlayPlayerById(state: GameState, id: PlayerId): InPlayPlayer {
+  const player = playerById(state, id);
+  if (player.kind === "bankrupt") {
+    throw new Error(`expected an in-play player, but ${id} is bankrupt`);
   }
   return player;
 }

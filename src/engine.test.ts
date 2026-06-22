@@ -4,7 +4,11 @@ import { BOARD_SIZE, boardPosition } from "./domain/position";
 import {
   currentPlayer,
   playerById,
+  type BankruptPlayer,
+  type FreePlayer,
   type GameState,
+  type InPlayPlayer,
+  type JailedPlayer,
   type Player,
 } from "./domain/state";
 import { FREE_PARKING_POSITION, JAIL_POSITION, tileAt } from "./domain/board";
@@ -44,14 +48,14 @@ describe("RollDice", () => {
         },
       ]);
 
-      const p1 = currentPlayer(result.state);
+      const p1 = inPlay(currentPlayer(result.state));
       expect(p1.position).toBe(boardPosition(7));
     });
 
     it("emits PassedGo when player passes GO", () => {
       // Arrange
       const state = makeState({
-        players: [makePlayer({ position: boardPosition(BOARD_SIZE - 1) })],
+        players: [freePlayer({ position: boardPosition(BOARD_SIZE - 1) })],
       });
 
       const dice: Dice = { roll: () => [3, 4] };
@@ -76,14 +80,14 @@ describe("RollDice", () => {
         },
       ]);
 
-      const p1 = currentPlayer(result.state);
+      const p1 = inPlay(currentPlayer(result.state));
       expect(p1.position).toBe(boardPosition(6));
     });
 
     it("emits PassedGo when player lands on GO", () => {
       // Arrange
       const state = makeState({
-        players: [makePlayer({ position: boardPosition(BOARD_SIZE - 2) })],
+        players: [freePlayer({ position: boardPosition(BOARD_SIZE - 2) })],
       });
 
       const dice: Dice = { roll: () => [1, 1] };
@@ -103,7 +107,7 @@ describe("RollDice", () => {
         { type: "PassedGo", playerId: "p1" },
       ]);
 
-      const p1 = currentPlayer(result.state);
+      const p1 = inPlay(currentPlayer(result.state));
       expect(p1.position).toBe(boardPosition(0));
     });
 
@@ -141,8 +145,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", balance: 1000 }),
-          makePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: 1000 }),
+          freePlayer({ id: "p2", balance: 2000 }),
         ],
         ownership: new Map([[boardPosition(5), "p2"]]),
       });
@@ -163,8 +167,8 @@ describe("RollDice", () => {
         { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
       expect(p1.balance).toBe(1000 - tile.rent);
       expect(p2.balance).toBe(2000 + tile.rent);
     });
@@ -189,7 +193,7 @@ describe("RollDice", () => {
         },
       ]);
 
-      const p1 = currentPlayer(result.state);
+      const p1 = inPlay(currentPlayer(result.state));
       expect(p1.balance).toBe(STARTING_BALANCE);
     });
 
@@ -199,8 +203,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", balance: 1000 }),
-          makePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: 1000 }),
+          freePlayer({ id: "p2", balance: 2000 }),
         ],
         ownership: new Map([
           [boardPosition(1), "p2"],
@@ -224,8 +228,8 @@ describe("RollDice", () => {
         { type: "RentPaid", from: "p1", to: "p2", amount: doubled },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
       expect(p1.balance).toBe(1000 - doubled);
       expect(p2.balance).toBe(2000 + doubled);
     });
@@ -236,8 +240,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", balance: 1000 }),
-          makePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: 1000 }),
+          freePlayer({ id: "p2", balance: 2000 }),
         ],
         ownership: new Map([[boardPosition(2), "p2"]]),
       });
@@ -257,8 +261,8 @@ describe("RollDice", () => {
         { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
       expect(p1.balance).toBe(1000 - tile.rent);
       expect(p2.balance).toBe(2000 + tile.rent);
     });
@@ -269,8 +273,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", balance: 1000 }),
-          makePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: 1000 }),
+          freePlayer({ id: "p2", balance: 2000 }),
         ],
         ownership: new Map([[boardPosition(5), "p2"]]),
         improvements: new Map([[boardPosition(5), improvementLevel(3)]]),
@@ -292,8 +296,8 @@ describe("RollDice", () => {
         { type: "RentPaid", from: "p1", to: "p2", amount: rent },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
       expect(p1.balance).toBe(1000 - rent);
       expect(p2.balance).toBe(2000 + rent);
     });
@@ -304,8 +308,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", balance: 1000 }),
-          makePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: 1000 }),
+          freePlayer({ id: "p2", balance: 2000 }),
         ],
         ownership: new Map([
           [boardPosition(5), "p2"],
@@ -331,8 +335,8 @@ describe("RollDice", () => {
         { type: "RentPaid", from: "p1", to: "p2", amount: rent },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
       expect(p1.balance).toBe(1000 - rent);
       expect(p2.balance).toBe(2000 + rent);
     });
@@ -341,7 +345,7 @@ describe("RollDice", () => {
   describe("Jail", () => {
     it("sends the player to jail when they land on the go-to-jail tile", () => {
       const state = makeState({
-        players: [makePlayer({ position: boardPosition(20) })],
+        players: [freePlayer({ position: boardPosition(20) })],
       });
 
       const dice: Dice = { roll: () => [3, 4] };
@@ -367,8 +371,13 @@ describe("RollDice", () => {
       ]);
 
       const p1 = currentPlayer(result.state);
-      expect(p1.status).toEqual({ kind: "jailed", failedAttempts: 0 });
-      expect(tileAt(p1.position)).toEqual({ kind: "jail" });
+      expect(p1).toEqual({
+        id: "p1",
+        balance: STARTING_BALANCE,
+        position: JAIL_POSITION,
+        kind: "jailed",
+        failedAttempts: 0,
+      });
     });
 
     it("does not jail a player who is just visiting the jail tile", () => {
@@ -390,15 +399,15 @@ describe("RollDice", () => {
       ]);
 
       const p1 = currentPlayer(result.state);
-      expect(p1.status).toEqual({ kind: "free" });
-      expect(tileAt(p1.position)).toEqual({ kind: "jail" });
+      expect(p1.kind).toBe("free");
     });
 
     it("keeps a jailed player when the roll is not doubles", () => {
       const state = makeState({
         players: [
-          makePlayer({
-            status: { kind: "jailed", failedAttempts: 0 },
+          jailedPlayer({
+            kind: "jailed",
+            failedAttempts: 0,
             position: JAIL_POSITION,
           }),
         ],
@@ -418,15 +427,21 @@ describe("RollDice", () => {
       ]);
 
       const p1 = currentPlayer(result.state);
-      expect(p1.status).toEqual({ kind: "jailed", failedAttempts: 1 });
-      expect(tileAt(p1.position)).toEqual({ kind: "jail" });
+      expect(p1).toEqual({
+        id: "p1",
+        position: JAIL_POSITION,
+        balance: STARTING_BALANCE,
+        kind: "jailed",
+        failedAttempts: 1,
+      });
     });
 
     it("frees a jailed player when the roll is doubles", () => {
       const state = makeState({
         players: [
-          makePlayer({
-            status: { kind: "jailed", failedAttempts: 0 },
+          jailedPlayer({
+            kind: "jailed",
+            failedAttempts: 0,
             position: JAIL_POSITION,
           }),
         ],
@@ -457,15 +472,20 @@ describe("RollDice", () => {
       ]);
 
       const p1 = currentPlayer(result.state);
-      expect(p1.status).toEqual({ kind: "free" });
-      expect(p1.position).toEqual(boardPosition(19));
+      expect(p1).toEqual({
+        id: "p1",
+        position: boardPosition(19),
+        balance: STARTING_BALANCE,
+        kind: "free",
+      });
     });
 
     it("frees a jailed player after its third failed roll", () => {
       const state = makeState({
         players: [
-          makePlayer({
-            status: { kind: "jailed", failedAttempts: MAX_JAIL_ATTEMPTS - 1 },
+          jailedPlayer({
+            kind: "jailed",
+            failedAttempts: MAX_JAIL_ATTEMPTS - 1,
             position: JAIL_POSITION,
           }),
         ],
@@ -485,15 +505,19 @@ describe("RollDice", () => {
       ]);
 
       const p1 = currentPlayer(result.state);
-      expect(p1.status).toEqual({ kind: "free" });
-      expect(p1.position).toEqual(boardPosition(9));
+      expect(p1).toEqual({
+        id: "p1",
+        position: JAIL_POSITION,
+        balance: STARTING_BALANCE,
+        kind: "free",
+      });
     });
   });
 
   describe("Free Parking", () => {
     it("lands a lone player with only the one Moved event", () => {
       const state = makeState({
-        players: [makePlayer({ id: "p1", position: boardPosition(11) })],
+        players: [freePlayer({ id: "p1", position: boardPosition(11) })],
       });
 
       const dice: Dice = { roll: () => [3, 4] };
@@ -511,15 +535,15 @@ describe("RollDice", () => {
         },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
+      const p1 = inPlay(playerById(result.state, "p1"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
     });
 
     it("draws a free player onto the tile", () => {
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", position: boardPosition(11) }),
-          makePlayer({ id: "p2", position: boardPosition(5) }),
+          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({ id: "p2", position: boardPosition(5) }),
         ],
       });
 
@@ -545,19 +569,19 @@ describe("RollDice", () => {
         { type: "DrawnToFreeParking", playerId: "p2" },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
-      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
+      expect(p2.position).toEqual(FREE_PARKING_POSITION);
     });
 
     it("draws every other free player onto the tile", () => {
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", position: boardPosition(11) }),
-          makePlayer({ id: "p2", position: boardPosition(5) }),
-          makePlayer({ id: "p3", position: boardPosition(2) }),
-          makePlayer({ id: "p4", position: boardPosition(8) }),
+          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({ id: "p2", position: boardPosition(5) }),
+          freePlayer({ id: "p3", position: boardPosition(2) }),
+          freePlayer({ id: "p4", position: boardPosition(8) }),
         ],
       });
 
@@ -597,24 +621,25 @@ describe("RollDice", () => {
         { type: "DrawnToFreeParking", playerId: "p4" },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
-      const p3 = playerById(result.state, "p3");
-      const p4 = playerById(result.state, "p4");
-      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p3.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p4.position)).toEqual({ kind: "freeParking" });
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      const p3 = inPlay(playerById(result.state, "p3"));
+      const p4 = inPlay(playerById(result.state, "p4"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
+      expect(p2.position).toEqual(FREE_PARKING_POSITION);
+      expect(p3.position).toEqual(FREE_PARKING_POSITION);
+      expect(p4.position).toEqual(FREE_PARKING_POSITION);
     });
 
     it("leaves a jailed player in jail", () => {
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", position: boardPosition(11) }),
-          makePlayer({
+          freePlayer({ id: "p1", position: boardPosition(11) }),
+          jailedPlayer({
             id: "p2",
             position: JAIL_POSITION,
-            status: { kind: "jailed", failedAttempts: 0 },
+            kind: "jailed",
+            failedAttempts: 0,
           }),
         ],
       });
@@ -634,17 +659,17 @@ describe("RollDice", () => {
         },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
-      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p2.position)).toEqual({ kind: "jail" });
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
+      expect(p2.position).toEqual(JAIL_POSITION);
     });
 
     it("does not re-move a player already standing on Free Parking", () => {
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", position: boardPosition(11) }),
-          makePlayer({
+          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({
             id: "p2",
             position: FREE_PARKING_POSITION,
           }),
@@ -666,17 +691,17 @@ describe("RollDice", () => {
         },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
-      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
+      expect(p2.position).toEqual(FREE_PARKING_POSITION);
     });
 
     it("collects no GO for a player drawn across a GO", () => {
       const state = makeState({
         players: [
-          makePlayer({ id: "p1", position: boardPosition(11) }),
-          makePlayer({
+          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({
             id: "p2",
             position: boardPosition(30),
           }),
@@ -705,10 +730,192 @@ describe("RollDice", () => {
         { type: "DrawnToFreeParking", playerId: "p2" },
       ]);
 
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
+      expect(p2.position).toEqual(FREE_PARKING_POSITION);
+    });
+
+    it("does not draw a bankrupt player to Free Parking", () => {
+      const state = makeState({
+        players: [
+          freePlayer({ id: "p1", position: boardPosition(9) }),
+          bankruptPlayer({ id: "p2" }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [4, 5] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(9),
+          to: FREE_PARKING_POSITION,
+        },
+      ]);
+
+      const p1 = inPlay(playerById(result.state, "p1"));
+      expect(p1.position).toEqual(FREE_PARKING_POSITION);
+    });
+  });
+
+  describe("Bankruptcy", () => {
+    it("rejects any command from a bankrupt player", () => {
+      const state = makeState({
+        players: [bankruptPlayer()],
+      });
+
+      const result = reduce(state, { type: "RollDice" }, { dice: noDice });
+
+      expect(result).toEqual({ status: "rejected", reason: "Bankrupt" });
+    });
+
+    it("bankrupts a player who can't afford rent, paying the owner nothing", () => {
+      const tile = tileAt(boardPosition(5));
+      if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+      const state = makeState({
+        players: [
+          freePlayer({ id: "p1", balance: tile.rent - 1 }),
+          freePlayer({ id: "p2" }),
+        ],
+        ownership: new Map([[boardPosition(5), "p2"]]),
+      });
+
+      const dice: Dice = { roll: () => [2, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(5),
+        },
+        {
+          type: "WentBankrupt",
+          playerId: "p1",
+        },
+      ]);
+
       const p1 = playerById(result.state, "p1");
-      const p2 = playerById(result.state, "p2");
-      expect(tileAt(p1.position)).toEqual({ kind: "freeParking" });
-      expect(tileAt(p2.position)).toEqual({ kind: "freeParking" });
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1).toEqual({ id: "p1", kind: "bankrupt" });
+      expect(p2.balance).toBe(STARTING_BALANCE);
+    });
+
+    it("does not bankrupt a player whose balance exactly covers the rent", () => {
+      const tile = tileAt(boardPosition(5));
+      if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+      const state = makeState({
+        players: [
+          freePlayer({ id: "p1", balance: tile.rent }),
+          freePlayer({ id: "p2" }),
+        ],
+        ownership: new Map([[boardPosition(5), "p2"]]),
+      });
+
+      const dice: Dice = { roll: () => [2, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(5),
+        },
+        { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
+      ]);
+
+      expect(() => inPlay(playerById(result.state, "p1"))).not.toThrow();
+    });
+
+    it("releases the bankrupt player's properties", () => {
+      const tile = tileAt(boardPosition(5));
+      if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+      const state = makeState({
+        players: [
+          freePlayer({ id: "p1", balance: tile.rent - 1 }),
+          freePlayer({ id: "p2" }),
+        ],
+        ownership: new Map([
+          [boardPosition(5), "p2"],
+          [boardPosition(7), "p1"],
+        ]),
+      });
+
+      const dice: Dice = { roll: () => [2, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(5),
+        },
+        {
+          type: "WentBankrupt",
+          playerId: "p1",
+        },
+      ]);
+
+      expect(result.state.ownership.get(boardPosition(7))).toBe(undefined);
+    });
+
+    it("clears improvements on the released properties", () => {
+      const tile = tileAt(boardPosition(5));
+      if (tile.kind !== "property") throw new Error("expected a property at 5");
+
+      const state = makeState({
+        players: [
+          freePlayer({ id: "p1", balance: tile.rent - 1 }),
+          freePlayer({ id: "p2" }),
+        ],
+        ownership: new Map([
+          [boardPosition(5), "p2"],
+          [boardPosition(7), "p1"],
+        ]),
+        improvements: new Map([[boardPosition(7), improvementLevel(2)]]),
+      });
+
+      const dice: Dice = { roll: () => [2, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(5),
+        },
+        {
+          type: "WentBankrupt",
+          playerId: "p1",
+        },
+      ]);
+
+      expect(result.state.improvements.get(boardPosition(7))).toBe(undefined);
     });
   });
 });
@@ -724,7 +931,7 @@ describe("BuyProperty", () => {
 
   it("buys the unowned property the player is standing on", () => {
     const state = makeState({
-      players: [makePlayer({ position: boardPosition(1) })],
+      players: [freePlayer({ position: boardPosition(1) })],
     });
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
@@ -739,7 +946,7 @@ describe("BuyProperty", () => {
 
   it("deducts the property's price from the buyer's balance", () => {
     const state = makeState({
-      players: [makePlayer({ position: boardPosition(1) })],
+      players: [freePlayer({ position: boardPosition(1) })],
     });
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
@@ -749,7 +956,7 @@ describe("BuyProperty", () => {
     const tile = tileAt(boardPosition(1));
     if (tile.kind !== "property") throw new Error("expected a property at 1");
 
-    const buyer = currentPlayer(result.state);
+    const buyer = inPlay(currentPlayer(result.state));
     expect(buyer.balance).toBe(STARTING_BALANCE - tile.price);
   });
 
@@ -759,7 +966,7 @@ describe("BuyProperty", () => {
 
     const state = makeState({
       players: [
-        makePlayer({ position: boardPosition(1), balance: tile.price - 1 }),
+        freePlayer({ position: boardPosition(1), balance: tile.price - 1 }),
       ],
     });
 
@@ -771,7 +978,7 @@ describe("BuyProperty", () => {
   it("rejects BuyProperty when the property is already owned", () => {
     const state = makeState({
       // balance: 0 because "AlreadyOwned" should be checked before "Insufficient balance"
-      players: [makePlayer({ position: boardPosition(1), balance: 0 })],
+      players: [freePlayer({ position: boardPosition(1), balance: 0 })],
       ownership: new Map([[boardPosition(1), "p2"]]),
     });
 
@@ -865,7 +1072,7 @@ describe("ImproveProperty", () => {
     assertAccepted(result);
 
     const cost = tile.costPerLevel * (4 - 1); // rate * levels added, from default 1
-    const p1 = playerById(result.state, "p1");
+    const p1 = inPlay(playerById(result.state, "p1"));
     expect(p1.balance).toBe(STARTING_BALANCE - cost);
   });
 
@@ -909,7 +1116,7 @@ describe("ImproveProperty", () => {
 
     const cost = tile.costPerLevel * (4 - 1);
     const state = makeState({
-      players: [makePlayer({ balance: cost - 1 })],
+      players: [freePlayer({ balance: cost - 1 })],
       ownership: new Map([[boardPosition(5), "p1"]]),
     });
 
@@ -948,7 +1155,7 @@ describe("ImproveProperty", () => {
     assertAccepted(result);
 
     const cost = tile.costPerLevel * (4 - 2);
-    const p1 = playerById(result.state, "p1");
+    const p1 = inPlay(playerById(result.state, "p1"));
     expect(p1.balance).toBe(STARTING_BALANCE - cost);
   });
 });
@@ -957,8 +1164,9 @@ describe("PayJailFine", () => {
   it("frees a jailed player who pays the fine, charging 500", () => {
     const state = makeState({
       players: [
-        makePlayer({
-          status: { kind: "jailed", failedAttempts: 0 },
+        jailedPlayer({
+          kind: "jailed",
+          failedAttempts: 0,
           position: JAIL_POSITION,
           balance: 1000,
         }),
@@ -974,16 +1182,19 @@ describe("PayJailFine", () => {
     ]);
 
     const p1 = currentPlayer(result.state);
-    expect(p1.status).toEqual({ kind: "free" });
-    expect(p1.balance).toBe(1000 - JAIL_FINE);
-    expect(p1.position).toBe(JAIL_POSITION);
+    expect(p1).toEqual({
+      id: "p1",
+      position: JAIL_POSITION,
+      balance: 1000 - JAIL_FINE,
+      kind: "free",
+    });
   });
 
   it("rejects a free player", () => {
     const state = makeState({
       players: [
-        makePlayer({
-          status: { kind: "free" },
+        freePlayer({
+          kind: "free",
           position: JAIL_POSITION,
           balance: 1000,
         }),
@@ -998,8 +1209,9 @@ describe("PayJailFine", () => {
   it("rejects a player that doesn't have enough money in the balance", () => {
     const state = makeState({
       players: [
-        makePlayer({
-          status: { kind: "jailed", failedAttempts: 0 },
+        jailedPlayer({
+          kind: "jailed",
+          failedAttempts: 0,
           position: JAIL_POSITION,
           balance: JAIL_FINE - 1,
         }),
@@ -1012,20 +1224,47 @@ describe("PayJailFine", () => {
   });
 });
 
-// No Omit<id> here, it's a default constructor helper, not a patcher.
-function makePlayer(overrides: Partial<Player> = {}): Player {
+function freePlayer(overrides: Partial<FreePlayer> = {}): FreePlayer {
   return {
     id: "p1",
-    status: { kind: "free" },
+    kind: "free",
     position: boardPosition(0),
     balance: STARTING_BALANCE,
     ...overrides,
   };
 }
 
+function jailedPlayer(overrides: Partial<JailedPlayer> = {}): JailedPlayer {
+  return {
+    id: "p1",
+    kind: "jailed",
+    position: boardPosition(0),
+    balance: STARTING_BALANCE,
+    failedAttempts: 0,
+    ...overrides,
+  };
+}
+
+function bankruptPlayer(
+  overrides: Partial<BankruptPlayer> = {},
+): BankruptPlayer {
+  return {
+    id: "p1",
+    kind: "bankrupt",
+    ...overrides,
+  };
+}
+
+function inPlay(player: Player): InPlayPlayer {
+  if (player.kind === "bankrupt") {
+    throw new Error(`expected in play, got bankrupt: ${player.id}`);
+  }
+  return player;
+}
+
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
-    players: [makePlayer({})],
+    players: [freePlayer({})],
     currentPlayerId: "p1",
     ownership: new Map(),
     improvements: new Map(),
