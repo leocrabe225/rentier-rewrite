@@ -32,6 +32,7 @@ import {
   MAX_JAIL_ATTEMPTS,
   RAILROAD_RENT_BASE,
 } from "./domain/rules";
+import { money, type Money } from "./domain/money";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
@@ -120,7 +121,7 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
   }
 
   const paidPlayer = overrideInPlayPlayer(player, {
-    balance: player.balance - tile.price,
+    balance: money(player.balance - tile.price),
   });
 
   return {
@@ -160,14 +161,14 @@ function improveProperty(
     return { status: "rejected", reason: "NotAnUpgrade" };
   }
 
-  const cost = tile.costPerLevel * (command.toLevel - currentLevel);
+  const cost = money(tile.costPerLevel * (command.toLevel - currentLevel));
 
   if (cost > player.balance) {
     return { status: "rejected", reason: "InsufficientFunds" };
   }
 
   const paidPlayer = overrideInPlayPlayer(player, {
-    balance: player.balance - cost,
+    balance: money(player.balance - cost),
   });
 
   return {
@@ -197,7 +198,7 @@ function payJailFine(state: GameState, player: InPlayPlayer): Reduction {
 
   const freePlayer = freeJailedPlayer(
     overrideJailedPlayer(player, {
-      balance: player.balance - JAIL_FINE,
+      balance: money(player.balance - JAIL_FINE),
     }),
   );
 
@@ -411,7 +412,7 @@ function applyLanding(state: GameState, player: FreePlayer): EngineResult {
         ? 2
         : 1;
       const level = getImprovementLevel(state, player.position);
-      const rent = tile.rent * level * monopolyFactor;
+      const rent = money(tile.rent * level * monopolyFactor);
 
       return chargeRent(state, player, owner, rent);
     }
@@ -442,7 +443,7 @@ function applyLanding(state: GameState, player: FreePlayer): EngineResult {
 
       const railroadAmount = getOwnedRailroad(state, owner.id).length;
 
-      const rent = RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1);
+      const rent = money(RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1));
 
       return chargeRent(state, player, owner, rent);
     }
@@ -491,7 +492,7 @@ function applyLanding(state: GameState, player: FreePlayer): EngineResult {
         return bankrupt(state, player);
       }
       const taxedPlayer = overrideInPlayPlayer(player, {
-        balance: player.balance - tile.amount,
+        balance: money(player.balance - tile.amount),
       });
 
       return {
@@ -519,12 +520,14 @@ function transfer(
   state: GameState,
   from: InPlayPlayer,
   to: InPlayPlayer,
-  amount: number,
+  amount: Money,
 ): GameState {
   const newFrom = overrideInPlayPlayer(from, {
-    balance: from.balance - amount,
+    balance: money(from.balance - amount),
   });
-  const newTo = overrideInPlayPlayer(to, { balance: to.balance + amount });
+  const newTo = overrideInPlayPlayer(to, {
+    balance: money(to.balance + amount),
+  });
 
   return replacePlayer(replacePlayer(state, newFrom), newTo);
 }
@@ -533,7 +536,7 @@ function chargeRent(
   state: GameState,
   from: FreePlayer,
   to: InPlayPlayer,
-  rent: number,
+  rent: Money,
 ): EngineResult {
   if (from.balance < rent) {
     return bankrupt(state, from);

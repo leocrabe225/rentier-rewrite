@@ -24,6 +24,7 @@ import {
   STARTING_BALANCE,
 } from "./domain/rules";
 import type { Tile } from "./domain/tiles";
+import { money } from "./domain/money";
 
 const noDice: Dice = {
   roll: () => {
@@ -179,8 +180,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: 1000 }),
-          freePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: money(1000) }),
+          freePlayer({ id: "p2", balance: money(2000) }),
         ],
         ownership: new Map([[boardPosition(5), "p2"]]),
       });
@@ -237,8 +238,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: 1000 }),
-          freePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: money(1000) }),
+          freePlayer({ id: "p2", balance: money(2000) }),
         ],
         ownership: new Map([
           [boardPosition(1), "p2"],
@@ -274,8 +275,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: 1000 }),
-          freePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: money(1000) }),
+          freePlayer({ id: "p2", balance: money(2000) }),
         ],
         ownership: new Map([[boardPosition(2), "p2"]]),
       });
@@ -307,8 +308,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: 1000 }),
-          freePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: money(1000) }),
+          freePlayer({ id: "p2", balance: money(2000) }),
         ],
         ownership: new Map([[boardPosition(5), "p2"]]),
         improvements: new Map([[boardPosition(5), improvementLevel(3)]]),
@@ -342,8 +343,8 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: 1000 }),
-          freePlayer({ id: "p2", balance: 2000 }),
+          freePlayer({ id: "p1", balance: money(1000) }),
+          freePlayer({ id: "p2", balance: money(2000) }),
         ],
         ownership: new Map([
           [boardPosition(5), "p2"],
@@ -430,8 +431,8 @@ describe("RollDice", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
         players: [
-          freePlayer({ balance: 3000 }),
-          freePlayer({ id: "p2", balance: 8000 }),
+          freePlayer({ balance: money(3000) }),
+          freePlayer({ id: "p2", balance: money(8000) }),
         ],
         ownership: new Map([[boardPosition(4), "p2"]]),
       });
@@ -452,8 +453,8 @@ describe("RollDice", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
         players: [
-          freePlayer({ balance: 3000 }),
-          freePlayer({ id: "p2", balance: 8000 }),
+          freePlayer({ balance: money(3000) }),
+          freePlayer({ id: "p2", balance: money(8000) }),
         ],
         ownership: new Map([
           [boardPosition(4), "p2"],
@@ -498,8 +499,8 @@ describe("RollDice", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
         players: [
-          freePlayer({ balance: RAILROAD_RENT_BASE - 1 }),
-          freePlayer({ id: "p2", balance: 8000 }),
+          freePlayer({ balance: money(RAILROAD_RENT_BASE - 1) }),
+          freePlayer({ id: "p2", balance: money(8000) }),
         ],
         ownership: new Map([[boardPosition(4), "p2"]]),
       });
@@ -967,7 +968,7 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: tile.rent - 1 }),
+          freePlayer({ id: "p1", balance: money(tile.rent - 1) }),
           freePlayer({ id: "p2" }),
         ],
         ownership: new Map([[boardPosition(5), "p2"]]),
@@ -1035,7 +1036,7 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: tile.rent - 1 }),
+          freePlayer({ id: "p1", balance: money(tile.rent - 1) }),
           freePlayer({ id: "p2" }),
         ],
         ownership: new Map([
@@ -1072,7 +1073,7 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: tile.rent - 1 }),
+          freePlayer({ id: "p1", balance: money(tile.rent - 1) }),
           freePlayer({ id: "p2" }),
         ],
         ownership: new Map([
@@ -1172,7 +1173,7 @@ describe("RollDice", () => {
       const tile = taxTileAt(boardPosition(3));
 
       const state = makeState({
-        players: [freePlayer({ id: "p1", balance: tile.amount - 1 })],
+        players: [freePlayer({ id: "p1", balance: money(tile.amount - 1) })],
       });
 
       const dice: Dice = { roll: () => [1, 2] };
@@ -1264,7 +1265,10 @@ describe("BuyProperty", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ position: boardPosition(1), balance: tile.price - 1 }),
+          freePlayer({
+            position: boardPosition(1),
+            balance: money(tile.price - 1),
+          }),
         ],
       });
 
@@ -1279,7 +1283,9 @@ describe("BuyProperty", () => {
     it("rejects BuyProperty when the property is already owned", () => {
       const state = makeState({
         // balance: 0 because "AlreadyOwned" should be checked before "Insufficient balance"
-        players: [freePlayer({ position: boardPosition(1), balance: 0 })],
+        players: [
+          freePlayer({ position: boardPosition(1), balance: money(0) }),
+        ],
         ownership: new Map([[boardPosition(1), "p2"]]),
       });
 
@@ -1353,7 +1359,7 @@ describe("BuyProperty", () => {
         players: [
           freePlayer({
             position: boardPosition(4),
-            balance: railroad.price - 1,
+            balance: money(railroad.price - 1),
           }),
         ],
       });
@@ -1496,7 +1502,7 @@ describe("ImproveProperty", () => {
 
     const cost = tile.costPerLevel * (4 - 1);
     const state = makeState({
-      players: [freePlayer({ balance: cost - 1 })],
+      players: [freePlayer({ balance: money(cost - 1) })],
       ownership: new Map([[boardPosition(5), "p1"]]),
     });
 
@@ -1548,7 +1554,7 @@ describe("PayJailFine", () => {
           kind: "jailed",
           failedAttempts: 0,
           position: JAIL_POSITION,
-          balance: 1000,
+          balance: money(1000),
         }),
       ],
     });
@@ -1576,7 +1582,7 @@ describe("PayJailFine", () => {
         freePlayer({
           kind: "free",
           position: JAIL_POSITION,
-          balance: 1000,
+          balance: money(1000),
         }),
       ],
     });
@@ -1593,7 +1599,7 @@ describe("PayJailFine", () => {
           kind: "jailed",
           failedAttempts: 0,
           position: JAIL_POSITION,
-          balance: JAIL_FINE - 1,
+          balance: money(JAIL_FINE - 1),
         }),
       ],
     });

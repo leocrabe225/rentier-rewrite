@@ -1,4 +1,5 @@
 import type { ImprovementLevel } from "./domain/improvementLevel";
+import type { Money } from "./domain/money";
 import type { BoardPosition } from "./domain/position";
 import type { PlayerId } from "./domain/state";
 
@@ -21,7 +22,7 @@ export type GameEvent =
   | {
       readonly type: "JailFinePaid";
       readonly playerId: PlayerId;
-      readonly amount: number;
+      readonly amount: Money;
     }
   | {
       readonly type: "PropertyBought";
@@ -32,7 +33,7 @@ export type GameEvent =
       readonly type: "RentPaid";
       readonly from: PlayerId;
       readonly to: PlayerId;
-      readonly amount: number;
+      readonly amount: Money;
     }
   | {
       readonly type: "PropertyImproved";
@@ -45,7 +46,7 @@ export type GameEvent =
   | {
       readonly type: "TaxPaid";
       readonly playerId: PlayerId;
-      readonly amount: number;
+      readonly amount: Money;
     }
   | {
       readonly type: "LandedOnRailroad";

@@ -1,3 +1,5 @@
+import type { Money } from "./money";
+
 export type PropertyColor =
   | "pink"
   | "lime"
@@ -14,9 +16,9 @@ export type Tile =
       readonly kind: "property";
       readonly name: string;
       readonly color: PropertyColor;
-      readonly price: number;
-      readonly rent: number;
-      readonly costPerLevel: number;
+      readonly price: Money;
+      readonly rent: Money;
+      readonly costPerLevel: Money;
     }
   | {
       readonly kind: "go-to-jail";
@@ -29,9 +31,9 @@ export type Tile =
     }
   | {
       readonly kind: "tax";
-      readonly amount: number;
+      readonly amount: Money;
     }
   | {
       readonly kind: "railroad";
-      readonly price: number;
+      readonly price: Money;
     };

@@ -2,6 +2,7 @@ import {
   BASE_IMPROVEMENT_LEVEL,
   type ImprovementLevel,
 } from "./improvementLevel";
+import type { Money } from "./money";
 import type { BoardPosition } from "./position";
 
 export type PlayerId = string; // Might brand this later
@@ -11,7 +12,7 @@ interface PlayerCore {
 }
 export interface InPlayFields extends PlayerCore {
   readonly position: BoardPosition;
-  readonly balance: number;
+  readonly balance: Money;
 }
 
 export interface FreePlayer extends InPlayFields {
