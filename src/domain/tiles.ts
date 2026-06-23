@@ -26,4 +26,8 @@ export type Tile =
     }
   | {
       readonly kind: "freeParking";
+    }
+  | {
+      readonly kind: "tax";
+      readonly amount: number;
     };

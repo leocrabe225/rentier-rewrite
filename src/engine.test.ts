@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { reduce, type Accepted, type Dice, type Reduction } from "./engine";
-import { BOARD_SIZE, boardPosition } from "./domain/position";
+import {
+  BOARD_SIZE,
+  boardPosition,
+  type BoardPosition,
+} from "./domain/position";
 import {
   currentPlayer,
   playerById,
@@ -14,6 +18,7 @@ import {
 import { FREE_PARKING_POSITION, JAIL_POSITION, tileAt } from "./domain/board";
 import { improvementLevel } from "./domain/improvementLevel";
 import { JAIL_FINE, MAX_JAIL_ATTEMPTS, STARTING_BALANCE } from "./domain/rules";
+import type { Tile } from "./domain/tiles";
 
 const noDice: Dice = {
   roll: () => {
@@ -918,6 +923,117 @@ describe("RollDice", () => {
       expect(result.state.improvements.get(boardPosition(7))).toBe(undefined);
     });
   });
+
+  describe("Tax", () => {
+    it("emits TaxPaid when landing on a tax tile", () => {
+      const tile = taxTileAt(boardPosition(3));
+
+      const state = makeState({
+        players: [freePlayer({ id: "p1" })],
+      });
+
+      const dice: Dice = { roll: () => [1, 2] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(3),
+        },
+        {
+          type: "TaxPaid",
+          playerId: "p1",
+          amount: tile.amount,
+        },
+      ]);
+    });
+
+    it("deducts the tax amount from the lander's balance", () => {
+      const tile = taxTileAt(boardPosition(3));
+
+      const state = makeState({
+        players: [freePlayer({ id: "p1" })],
+      });
+
+      const dice: Dice = { roll: () => [1, 2] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      const p1 = inPlay(playerById(result.state, "p1"));
+      expect(p1.balance).toBe(STARTING_BALANCE - tile.amount);
+    });
+
+    it("pays the tax to no one, no other balance changes", () => {
+      expect(() => taxTileAt(boardPosition(3))).not.toThrow();
+
+      const state = makeState({
+        players: [freePlayer({ id: "p1" }), freePlayer({ id: "p2" })],
+      });
+
+      const dice: Dice = { roll: () => [1, 2] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p2.balance).toBe(STARTING_BALANCE);
+    });
+
+    it("bankrupts a player who can't afford the tax", () => {
+      const tile = taxTileAt(boardPosition(3));
+
+      const state = makeState({
+        players: [freePlayer({ id: "p1", balance: tile.amount - 1 })],
+      });
+
+      const dice: Dice = { roll: () => [1, 2] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(3),
+        },
+        {
+          type: "WentBankrupt",
+          playerId: "p1",
+        },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      expect(p1).toEqual({ id: "p1", kind: "bankrupt" });
+    });
+
+    it("does not bankrupt a player whose balance exactly covers the tax", () => {
+      const tile = taxTileAt(boardPosition(3));
+
+      const state = makeState({
+        players: [freePlayer({ id: "p1", balance: tile.amount })],
+      });
+
+      const dice: Dice = { roll: () => [1, 2] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      const p1 = inPlay(playerById(result.state, "p1"));
+      expect(p1.balance).toBe(0);
+    });
+  });
 });
 
 describe("BuyProperty", () => {
@@ -1270,6 +1386,12 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     improvements: new Map(),
     ...overrides,
   };
+}
+
+function taxTileAt(position: BoardPosition): Tile & { kind: "tax" } {
+  const tile = tileAt(boardPosition(position));
+  if (tile.kind !== "tax") throw new Error(`expected a tax at ${position}`);
+  return tile;
 }
 
 function assertAccepted(r: Reduction): asserts r is Accepted {

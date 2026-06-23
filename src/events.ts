@@ -41,4 +41,9 @@ export type GameEvent =
       readonly level: ImprovementLevel;
     }
   | { readonly type: "DrawnToFreeParking"; readonly playerId: PlayerId }
-  | { readonly type: "WentBankrupt"; readonly playerId: PlayerId };
+  | { readonly type: "WentBankrupt"; readonly playerId: PlayerId }
+  | {
+      readonly type: "TaxPaid";
+      readonly playerId: PlayerId;
+      readonly amount: number;
+    };

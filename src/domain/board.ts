@@ -24,12 +24,8 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 500,
   },
   {
-    kind: "property",
-    name: "placeholder-3",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "tax",
+    amount: 2000,
   },
   {
     kind: "property",
@@ -257,12 +253,8 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 2000,
   },
   {
-    kind: "property",
-    name: "placeholder-34",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "tax",
+    amount: 1000,
   },
   {
     kind: "property",

@@ -407,14 +407,7 @@ function applyLanding(
       const rent = tile.rent * level * monopolyFactor;
 
       if (player.balance < rent) {
-        const bankruptPlayer = bankruptInPlayPlayer(player);
-
-        const newState = releaseProperties(state, bankruptPlayer.id);
-
-        return {
-          state: replacePlayer(newState, bankruptPlayer),
-          events: [{ type: "WentBankrupt", playerId: bankruptPlayer.id }],
-        };
+        return bankrupt(state, player);
       }
 
       return {
@@ -464,9 +457,33 @@ function applyLanding(
 
       return { events, state: { ...state, players } };
     }
+    case "tax": {
+      if (player.balance < tile.amount) {
+        return bankrupt(state, player);
+      }
+      const taxedPlayer = overrideInPlayPlayer(player, {
+        balance: player.balance - tile.amount,
+      });
+
+      return {
+        state: replacePlayer(state, taxedPlayer),
+        events: [{ type: "TaxPaid", playerId: player.id, amount: tile.amount }],
+      };
+    }
     default:
       return assertNever(tile);
   }
+}
+
+function bankrupt(state: GameState, player: FreePlayer): EngineResult {
+  const bankruptPlayer = bankruptInPlayPlayer(player);
+
+  const newState = releaseProperties(state, bankruptPlayer.id);
+
+  return {
+    state: replacePlayer(newState, bankruptPlayer),
+    events: [{ type: "WentBankrupt", playerId: bankruptPlayer.id }],
+  };
 }
 
 function transfer(

@@ -42,4 +42,15 @@ describe("board", () => {
       ).toBeGreaterThanOrEqual(2);
     }
   });
+
+  it("has two tax tiles", () => {
+    let count = 0;
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      if (tileAt(boardPosition(i)).kind === "tax") {
+        count += 1;
+      }
+    }
+
+    expect(count).toBe(2);
+  });
 });
