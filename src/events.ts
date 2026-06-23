@@ -46,4 +46,9 @@ export type GameEvent =
       readonly type: "TaxPaid";
       readonly playerId: PlayerId;
       readonly amount: number;
+    }
+  | {
+      readonly type: "LandedOnRailroad";
+      readonly playerId: PlayerId;
+      readonly position: BoardPosition;
     };

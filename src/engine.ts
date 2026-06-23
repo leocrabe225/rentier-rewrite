@@ -23,10 +23,15 @@ import {
   FREE_PARKING_POSITION,
   groupPositions,
   JAIL_POSITION,
+  railroadPositions,
   tileAt,
 } from "./domain/board";
 import { type ImprovementLevel } from "./domain/improvementLevel";
-import { JAIL_FINE, MAX_JAIL_ATTEMPTS } from "./domain/rules";
+import {
+  JAIL_FINE,
+  MAX_JAIL_ATTEMPTS,
+  RAILROAD_RENT_BASE,
+} from "./domain/rules";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
@@ -44,7 +49,7 @@ export interface EngineResult {
 }
 
 export type RejectionReason =
-  | "NotOnAProperty"
+  | "NotBuyable"
   | "InsufficientFunds"
   | "AlreadyOwned"
   | "NotAProperty"
@@ -102,8 +107,8 @@ function rollDice(
 function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
   const tile = tileAt(player.position);
 
-  if (tile.kind !== "property") {
-    return { status: "rejected", reason: "NotOnAProperty" };
+  if (tile.kind !== "railroad" && tile.kind !== "property") {
+    return { status: "rejected", reason: "NotBuyable" };
   }
 
   if (state.ownership.has(player.position)) {
@@ -225,7 +230,7 @@ function move(
     events.push({ type: "PassedGo", playerId: movedPlayer.id });
   }
 
-  const landing = applyLanding(moved, movedPlayer, to);
+  const landing = applyLanding(moved, movedPlayer);
   events.push(...landing.events);
 
   return {
@@ -371,23 +376,25 @@ function withImprovement(
   };
 }
 
-function applyLanding(
-  state: GameState,
-  player: FreePlayer,
-  position: BoardPosition,
-): EngineResult {
-  const tile = tileAt(position);
+function applyLanding(state: GameState, player: FreePlayer): EngineResult {
+  const tile = tileAt(player.position);
 
   switch (tile.kind) {
     case "go":
       return { state, events: [] };
     case "property": {
-      const ownerId = state.ownership.get(position);
+      const ownerId = state.ownership.get(player.position);
 
       if (ownerId === undefined) {
         return {
           state,
-          events: [{ type: "LandedOnProperty", playerId: player.id, position }],
+          events: [
+            {
+              type: "LandedOnProperty",
+              playerId: player.id,
+              position: player.position,
+            },
+          ],
         };
       }
 
@@ -403,19 +410,41 @@ function applyLanding(
       const monopolyFactor = ownsWholeGroup(state, owner.id, tile.color)
         ? 2
         : 1;
-      const level = getImprovementLevel(state, position);
+      const level = getImprovementLevel(state, player.position);
       const rent = tile.rent * level * monopolyFactor;
 
-      if (player.balance < rent) {
-        return bankrupt(state, player);
+      return chargeRent(state, player, owner, rent);
+    }
+    case "railroad": {
+      const ownerId = state.ownership.get(player.position);
+
+      if (ownerId === undefined) {
+        return {
+          state,
+          events: [
+            {
+              type: "LandedOnRailroad",
+              playerId: player.id,
+              position: player.position,
+            },
+          ],
+        };
       }
 
-      return {
-        state: transfer(state, player, owner, rent),
-        events: [
-          { type: "RentPaid", from: player.id, to: owner.id, amount: rent },
-        ],
-      };
+      if (ownerId === player.id) {
+        return {
+          state,
+          events: [],
+        };
+      }
+
+      const owner = inPlayPlayerById(state, ownerId);
+
+      const railroadAmount = getOwnedRailroad(state, owner.id).length;
+
+      const rent = RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1);
+
+      return chargeRent(state, player, owner, rent);
     }
     case "go-to-jail": {
       const jailedPlayer = jailPlayer(player);
@@ -425,7 +454,7 @@ function applyLanding(
           {
             type: "Moved",
             playerId: player.id,
-            from: position,
+            from: player.position,
             to: JAIL_POSITION,
           },
           { type: "SentToJail", playerId: player.id },
@@ -500,6 +529,22 @@ function transfer(
   return replacePlayer(replacePlayer(state, newFrom), newTo);
 }
 
+function chargeRent(
+  state: GameState,
+  from: FreePlayer,
+  to: InPlayPlayer,
+  rent: number,
+): EngineResult {
+  if (from.balance < rent) {
+    return bankrupt(state, from);
+  }
+
+  return {
+    state: transfer(state, from, to, rent),
+    events: [{ type: "RentPaid", from: from.id, to: to.id, amount: rent }],
+  };
+}
+
 function releaseProperties(state: GameState, id: PlayerId): GameState {
   const ownership = new Map(
     [...state.ownership].filter(([, owner]) => owner !== id),
@@ -516,6 +561,15 @@ function ownsWholeGroup(
   color: PropertyColor,
 ): boolean {
   return groupPositions(color).every(
+    (pos) => state.ownership.get(pos) === owner,
+  );
+}
+
+function getOwnedRailroad(
+  state: GameState,
+  owner: PlayerId,
+): readonly BoardPosition[] {
+  return railroadPositions().filter(
     (pos) => state.ownership.get(pos) === owner,
   );
 }

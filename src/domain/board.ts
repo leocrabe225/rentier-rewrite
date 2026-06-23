@@ -28,12 +28,8 @@ const board: ReadonlyArray<Tile> = [
     amount: 2000,
   },
   {
-    kind: "property",
-    name: "placeholder-4",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "railroad",
+    price: 2000,
   },
   {
     kind: "property",
@@ -95,12 +91,8 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 1000,
   },
   {
-    kind: "property",
-    name: "placeholder-13",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "railroad",
+    price: 2000,
   },
   {
     kind: "property",
@@ -170,12 +162,8 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 1500,
   },
   {
-    kind: "property",
-    name: "placeholder-23",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "railroad",
+    price: 2000,
   },
   {
     kind: "property",
@@ -229,12 +217,8 @@ const board: ReadonlyArray<Tile> = [
     costPerLevel: 2000,
   },
   {
-    kind: "property",
-    name: "placeholder-31",
-    price: 500,
-    rent: 100,
-    color: "darkblue",
-    costPerLevel: 500,
+    kind: "railroad",
+    price: 2000,
   },
   {
     kind: "property",
@@ -282,6 +266,15 @@ export function groupPositions(color: PropertyColor): readonly BoardPosition[] {
     const pos = boardPosition(i);
     const tile = tileAt(pos);
     if (tile.kind === "property" && tile.color === color) positions.push(pos);
+  }
+  return positions;
+}
+
+export function railroadPositions(): readonly BoardPosition[] {
+  const positions: BoardPosition[] = [];
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    const pos = boardPosition(i);
+    if (tileAt(pos).kind === "railroad") positions.push(pos);
   }
   return positions;
 }

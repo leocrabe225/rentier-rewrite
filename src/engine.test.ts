@@ -17,7 +17,12 @@ import {
 } from "./domain/state";
 import { FREE_PARKING_POSITION, JAIL_POSITION, tileAt } from "./domain/board";
 import { improvementLevel } from "./domain/improvementLevel";
-import { JAIL_FINE, MAX_JAIL_ATTEMPTS, STARTING_BALANCE } from "./domain/rules";
+import {
+  JAIL_FINE,
+  MAX_JAIL_ATTEMPTS,
+  RAILROAD_RENT_BASE,
+  STARTING_BALANCE,
+} from "./domain/rules";
 import type { Tile } from "./domain/tiles";
 
 const noDice: Dice = {
@@ -141,9 +146,33 @@ describe("RollDice", () => {
         },
       ]);
     });
+
+    it("emits LandedOnRailroad when landing on an unowned railroad", () => {
+      const state = makeState({});
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(4),
+        },
+        {
+          type: "LandedOnRailroad",
+          playerId: "p1",
+          position: boardPosition(4),
+        },
+      ]);
+    });
   });
 
-  describe("Rent", () => {
+  describe("Properties", () => {
     it("pays rent to the owner when landing on an owned property", () => {
       const tile = tileAt(boardPosition(5));
       if (tile.kind !== "property") throw new Error("expected a property at 5");
@@ -344,6 +373,158 @@ describe("RollDice", () => {
       const p2 = inPlay(playerById(result.state, "p2"));
       expect(p1.balance).toBe(1000 - rent);
       expect(p2.balance).toBe(2000 + rent);
+    });
+  });
+
+  describe("Railroads", () => {
+    it("charges no rent when landing on your own railroad", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        ownership: new Map([[boardPosition(4), "p1"]]),
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(4),
+        },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(STARTING_BALANCE);
+    });
+
+    it("emits RentPaid when owned by other player", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [freePlayer({}), freePlayer({ id: "p2" })],
+        ownership: new Map([[boardPosition(4), "p2"]]),
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(4),
+        },
+        { type: "RentPaid", from: "p1", to: "p2", amount: RAILROAD_RENT_BASE },
+      ]);
+    });
+
+    it("transfers rent when owned by other player", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [
+          freePlayer({ balance: 3000 }),
+          freePlayer({ id: "p2", balance: 8000 }),
+        ],
+        ownership: new Map([[boardPosition(4), "p2"]]),
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1.balance).toBe(3000 - RAILROAD_RENT_BASE);
+      expect(p2.balance).toBe(8000 + RAILROAD_RENT_BASE);
+    });
+
+    it("scales rent when owned owns more than 1", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [
+          freePlayer({ balance: 3000 }),
+          freePlayer({ id: "p2", balance: 8000 }),
+        ],
+        ownership: new Map([
+          [boardPosition(4), "p2"],
+          [boardPosition(13), "p2"],
+          [boardPosition(23), "p2"],
+          [boardPosition(31), "p2"],
+        ]),
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      const p1 = inPlay(playerById(result.state, "p1"));
+      const p2 = inPlay(playerById(result.state, "p2"));
+      expect(p1.balance).toBe(3000 - 2000);
+      expect(p2.balance).toBe(8000 + 2000);
+    });
+
+    it("does not bankrupt when balance exactly covers railroad rent", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [
+          freePlayer({ balance: RAILROAD_RENT_BASE }),
+          freePlayer({ id: "p2" }),
+        ],
+        ownership: new Map([[boardPosition(4), "p2"]]),
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(() => inPlay(playerById(result.state, "p1"))).not.toThrow();
+    });
+
+    it("bankrupts a player who can't afford rent", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [
+          freePlayer({ balance: RAILROAD_RENT_BASE - 1 }),
+          freePlayer({ id: "p2", balance: 8000 }),
+        ],
+        ownership: new Map([[boardPosition(4), "p2"]]),
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, { dice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: "p1",
+          from: boardPosition(0),
+          to: boardPosition(4),
+        },
+        {
+          type: "WentBankrupt",
+          playerId: "p1",
+        },
+      ]);
+
+      const p1 = playerById(result.state, "p1");
+      expect(p1).toEqual({ id: "p1", kind: "bankrupt" });
     });
   });
 
@@ -1037,70 +1218,153 @@ describe("RollDice", () => {
 });
 
 describe("BuyProperty", () => {
-  it("rejects BuyProperty when the player is not standing on a property", () => {
+  it("rejects BuyProperty when the player is not standing on a buyable tile", () => {
     const state = makeState({});
 
     const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
-    expect(result).toEqual({ status: "rejected", reason: "NotOnAProperty" });
+    expect(result).toEqual({ status: "rejected", reason: "NotBuyable" });
   });
 
-  it("buys the unowned property the player is standing on", () => {
-    const state = makeState({
-      players: [freePlayer({ position: boardPosition(1) })],
+  describe("Properties", () => {
+    it("buys the unowned property the player is standing on", () => {
+      const state = makeState({
+        players: [freePlayer({ position: boardPosition(1) })],
+      });
+
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        { type: "PropertyBought", playerId: "p1", position: boardPosition(1) },
+      ]);
+      expect(result.state.ownership.get(boardPosition(1))).toBe("p1");
     });
 
-    const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+    it("deducts the property's price from the buyer's balance", () => {
+      const state = makeState({
+        players: [freePlayer({ position: boardPosition(1) })],
+      });
 
-    assertAccepted(result);
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
-    expect(result.events).toEqual([
-      { type: "PropertyBought", playerId: "p1", position: boardPosition(1) },
-    ]);
-    expect(result.state.ownership.get(boardPosition(1))).toBe("p1");
+      assertAccepted(result);
+
+      const tile = tileAt(boardPosition(1));
+      if (tile.kind !== "property") throw new Error("expected a property at 1");
+
+      const buyer = inPlay(currentPlayer(result.state));
+      expect(buyer.balance).toBe(STARTING_BALANCE - tile.price);
+    });
+
+    it("rejects BuyProperty when the player can't afford the property", () => {
+      const tile = tileAt(boardPosition(1));
+      if (tile.kind !== "property") throw new Error("expected a property at 1");
+
+      const state = makeState({
+        players: [
+          freePlayer({ position: boardPosition(1), balance: tile.price - 1 }),
+        ],
+      });
+
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+
+      expect(result).toEqual({
+        status: "rejected",
+        reason: "InsufficientFunds",
+      });
+    });
+
+    it("rejects BuyProperty when the property is already owned", () => {
+      const state = makeState({
+        // balance: 0 because "AlreadyOwned" should be checked before "Insufficient balance"
+        players: [freePlayer({ position: boardPosition(1), balance: 0 })],
+        ownership: new Map([[boardPosition(1), "p2"]]),
+      });
+
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+
+      expect(result).toEqual({ status: "rejected", reason: "AlreadyOwned" });
+    });
   });
 
-  it("deducts the property's price from the buyer's balance", () => {
-    const state = makeState({
-      players: [freePlayer({ position: boardPosition(1) })],
+  describe("Railroads", () => {
+    it("emits PropertyBought", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [freePlayer({ position: boardPosition(4) })],
+      });
+
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        { type: "PropertyBought", playerId: "p1", position: boardPosition(4) },
+      ]);
     });
 
-    const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+    it("appends the railroad to the player's ownership", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [freePlayer({ position: boardPosition(4) })],
+      });
 
-    assertAccepted(result);
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
-    const tile = tileAt(boardPosition(1));
-    if (tile.kind !== "property") throw new Error("expected a property at 1");
+      assertAccepted(result);
 
-    const buyer = inPlay(currentPlayer(result.state));
-    expect(buyer.balance).toBe(STARTING_BALANCE - tile.price);
-  });
-
-  it("rejects BuyProperty when the player can't afford the property", () => {
-    const tile = tileAt(boardPosition(1));
-    if (tile.kind !== "property") throw new Error("expected a property at 1");
-
-    const state = makeState({
-      players: [
-        freePlayer({ position: boardPosition(1), balance: tile.price - 1 }),
-      ],
+      expect(result.state.ownership.get(boardPosition(4))).toBe("p1");
     });
 
-    const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+    it("deducts the railroad's price from the player's balance ", () => {
+      const railroad = railroadTileAt(boardPosition(4));
+      const state = makeState({
+        players: [freePlayer({ position: boardPosition(4) })],
+      });
 
-    expect(result).toEqual({ status: "rejected", reason: "InsufficientFunds" });
-  });
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
 
-  it("rejects BuyProperty when the property is already owned", () => {
-    const state = makeState({
-      // balance: 0 because "AlreadyOwned" should be checked before "Insufficient balance"
-      players: [freePlayer({ position: boardPosition(1), balance: 0 })],
-      ownership: new Map([[boardPosition(1), "p2"]]),
+      assertAccepted(result);
+
+      const p1 = inPlay(playerById(result.state, "p1"));
+      expect(p1.balance).toBe(STARTING_BALANCE - railroad.price);
     });
 
-    const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+    it("rejects buying an already-owned railroad", () => {
+      expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
+      const state = makeState({
+        players: [
+          freePlayer({ position: boardPosition(4) }),
+          freePlayer({ id: "p2" }),
+        ],
+        ownership: new Map([[boardPosition(4), "p2"]]),
+      });
 
-    expect(result).toEqual({ status: "rejected", reason: "AlreadyOwned" });
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+
+      expect(result).toEqual({ status: "rejected", reason: "AlreadyOwned" });
+    });
+
+    it("rejects buying a railroad you can't afford", () => {
+      const railroad = railroadTileAt(boardPosition(4));
+      const state = makeState({
+        players: [
+          freePlayer({
+            position: boardPosition(4),
+            balance: railroad.price - 1,
+          }),
+        ],
+      });
+
+      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+
+      expect(result).toEqual({
+        status: "rejected",
+        reason: "InsufficientFunds",
+      });
+    });
   });
 });
 
@@ -1391,6 +1655,13 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 function taxTileAt(position: BoardPosition): Tile & { kind: "tax" } {
   const tile = tileAt(boardPosition(position));
   if (tile.kind !== "tax") throw new Error(`expected a tax at ${position}`);
+  return tile;
+}
+
+function railroadTileAt(position: BoardPosition): Tile & { kind: "railroad" } {
+  const tile = tileAt(boardPosition(position));
+  if (tile.kind !== "railroad")
+    throw new Error(`expected a railroad at ${position}`);
   return tile;
 }
 

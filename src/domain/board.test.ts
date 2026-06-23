@@ -53,4 +53,15 @@ describe("board", () => {
 
     expect(count).toBe(2);
   });
+
+  it("has four railroads", () => {
+    let count = 0;
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      if (tileAt(boardPosition(i)).kind === "railroad") {
+        count += 1;
+      }
+    }
+
+    expect(count).toBe(4);
+  });
 });

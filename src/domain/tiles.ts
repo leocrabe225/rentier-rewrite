@@ -30,4 +30,8 @@ export type Tile =
   | {
       readonly kind: "tax";
       readonly amount: number;
+    }
+  | {
+      readonly kind: "railroad";
+      readonly price: number;
     };
