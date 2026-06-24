@@ -175,8 +175,7 @@ describe("RollDice", () => {
 
   describe("Properties", () => {
     it("pays rent to the owner when landing on an owned property", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -233,8 +232,7 @@ describe("RollDice", () => {
     });
 
     it("doubles rent when the owner holds the whole color group", () => {
-      const tile = tileAt(boardPosition(2));
-      if (tile.kind !== "property") throw new Error("expected a property at 2");
+      const tile = propertyTileAt(boardPosition(2));
 
       const state = makeState({
         players: [
@@ -270,8 +268,7 @@ describe("RollDice", () => {
     });
 
     it("charges single rent when the owner holds only part of the color group", () => {
-      const tile = tileAt(boardPosition(2));
-      if (tile.kind !== "property") throw new Error("expected a property at 2");
+      const tile = propertyTileAt(boardPosition(2));
 
       const state = makeState({
         players: [
@@ -303,8 +300,7 @@ describe("RollDice", () => {
     });
 
     it("scales rent by improvement level", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -338,8 +334,7 @@ describe("RollDice", () => {
     });
 
     it("scales rent by improvement level * monopolyFactor", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -963,8 +958,7 @@ describe("RollDice", () => {
     });
 
     it("bankrupts a player who can't afford rent, paying the owner nothing", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -1000,8 +994,7 @@ describe("RollDice", () => {
     });
 
     it("does not bankrupt a player whose balance exactly covers the rent", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -1031,8 +1024,7 @@ describe("RollDice", () => {
     });
 
     it("releases the bankrupt player's properties", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -1068,8 +1060,7 @@ describe("RollDice", () => {
     });
 
     it("clears improvements on the released properties", () => {
-      const tile = tileAt(boardPosition(5));
-      if (tile.kind !== "property") throw new Error("expected a property at 5");
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -1244,6 +1235,8 @@ describe("BuyProperty", () => {
     });
 
     it("deducts the property's price from the buyer's balance", () => {
+      const tile = propertyTileAt(boardPosition(1));
+
       const state = makeState({
         players: [freePlayer({ position: boardPosition(1) })],
       });
@@ -1252,16 +1245,12 @@ describe("BuyProperty", () => {
 
       assertAccepted(result);
 
-      const tile = tileAt(boardPosition(1));
-      if (tile.kind !== "property") throw new Error("expected a property at 1");
-
       const buyer = inPlay(currentPlayer(result.state));
       expect(buyer.balance).toBe(STARTING_BALANCE - tile.price);
     });
 
     it("rejects BuyProperty when the player can't afford the property", () => {
-      const tile = tileAt(boardPosition(1));
-      if (tile.kind !== "property") throw new Error("expected a property at 1");
+      const tile = propertyTileAt(boardPosition(1));
 
       const state = makeState({
         players: [
@@ -1438,8 +1427,7 @@ describe("ImproveProperty", () => {
   });
 
   it("deducts the improvement cost from the player's balance", () => {
-    const tile = tileAt(boardPosition(5));
-    if (tile.kind !== "property") throw new Error("expected a property at 5");
+    const tile = propertyTileAt(boardPosition(5));
 
     const state = makeState({
       ownership: new Map([[boardPosition(5), "p1"]]),
@@ -1497,8 +1485,7 @@ describe("ImproveProperty", () => {
   });
 
   it("rejects improving when the player can't afford the cost", () => {
-    const tile = tileAt(boardPosition(5));
-    if (tile.kind !== "property") throw new Error("expected a property at 5");
+    const tile = propertyTileAt(boardPosition(5));
 
     const cost = tile.costPerLevel * (4 - 1);
     const state = makeState({
@@ -1520,8 +1507,7 @@ describe("ImproveProperty", () => {
   });
 
   it("deducts the improvement cost from the player's balance with an already-improved property", () => {
-    const tile = tileAt(boardPosition(5));
-    if (tile.kind !== "property") throw new Error("expected a property at 5");
+    const tile = propertyTileAt(boardPosition(5));
 
     const state = makeState({
       ownership: new Map([[boardPosition(5), "p1"]]),
@@ -1661,6 +1647,13 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 function taxTileAt(position: BoardPosition): Tile & { kind: "tax" } {
   const tile = tileAt(boardPosition(position));
   if (tile.kind !== "tax") throw new Error(`expected a tax at ${position}`);
+  return tile;
+}
+
+function propertyTileAt(position: BoardPosition): Tile & { kind: "property" } {
+  const tile = tileAt(boardPosition(position));
+  if (tile.kind !== "property")
+    throw new Error(`expected a property at ${position}`);
   return tile;
 }
 
