@@ -3,9 +3,8 @@ import {
   type ImprovementLevel,
 } from "./improvementLevel";
 import type { Money } from "./money";
+import type { PlayerId } from "./playerId";
 import type { BoardPosition } from "./position";
-
-export type PlayerId = string; // Might brand this later
 
 interface PlayerCore {
   readonly id: PlayerId;

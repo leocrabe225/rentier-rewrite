@@ -25,6 +25,12 @@ import {
 } from "./domain/rules";
 import type { Tile } from "./domain/tiles";
 import { money } from "./domain/money";
+import { playerId } from "./domain/playerId";
+
+const P1 = playerId("p1");
+const P2 = playerId("p2");
+const P3 = playerId("p3");
+const P4 = playerId("p4");
 
 const noDice: Dice = {
   roll: () => {
@@ -48,13 +54,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(7),
         },
         {
           type: "LandedOnProperty",
-          playerId: "p1",
+          playerId: P1,
           position: boardPosition(7),
         },
       ]);
@@ -79,14 +85,14 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(BOARD_SIZE - 1),
           to: boardPosition(6),
         },
-        { type: "PassedGo", playerId: "p1" },
+        { type: "PassedGo", playerId: P1 },
         {
           type: "LandedOnProperty",
-          playerId: "p1",
+          playerId: P1,
           position: boardPosition(6),
         },
       ]);
@@ -111,11 +117,11 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(BOARD_SIZE - 2),
           to: boardPosition(0),
         },
-        { type: "PassedGo", playerId: "p1" },
+        { type: "PassedGo", playerId: P1 },
       ]);
 
       const p1 = inPlay(currentPlayer(result.state));
@@ -136,13 +142,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(2),
         },
         {
           type: "LandedOnProperty",
-          playerId: "p1",
+          playerId: P1,
           position: boardPosition(2),
         },
       ]);
@@ -160,13 +166,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(4),
         },
         {
           type: "LandedOnRailroad",
-          playerId: "p1",
+          playerId: P1,
           position: boardPosition(4),
         },
       ]);
@@ -179,10 +185,10 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(1000) }),
-          freePlayer({ id: "p2", balance: money(2000) }),
+          freePlayer({ id: P1, balance: money(1000) }),
+          freePlayer({ id: P2, balance: money(2000) }),
         ],
-        ownership: new Map([[boardPosition(5), "p2"]]),
+        ownership: new Map([[boardPosition(5), P2]]),
       });
 
       const dice: Dice = { roll: () => [2, 3] };
@@ -194,22 +200,22 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
+        { type: "RentPaid", from: P1, to: P2, amount: tile.rent },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(1000 - tile.rent);
       expect(p2.balance).toBe(2000 + tile.rent);
     });
 
     it("charges no rent when landing on your own property", () => {
       const state = makeState({
-        ownership: new Map([[boardPosition(5), "p1"]]),
+        ownership: new Map([[boardPosition(5), P1]]),
       });
 
       const dice: Dice = { roll: () => [2, 3] };
@@ -221,7 +227,7 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
@@ -236,12 +242,12 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(1000) }),
-          freePlayer({ id: "p2", balance: money(2000) }),
+          freePlayer({ id: P1, balance: money(1000) }),
+          freePlayer({ id: P2, balance: money(2000) }),
         ],
         ownership: new Map([
-          [boardPosition(1), "p2"],
-          [boardPosition(2), "p2"],
+          [boardPosition(1), P2],
+          [boardPosition(2), P2],
         ]),
       });
 
@@ -254,15 +260,15 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(2),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: doubled },
+        { type: "RentPaid", from: P1, to: P2, amount: doubled },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(1000 - doubled);
       expect(p2.balance).toBe(2000 + doubled);
     });
@@ -272,10 +278,10 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(1000) }),
-          freePlayer({ id: "p2", balance: money(2000) }),
+          freePlayer({ id: P1, balance: money(1000) }),
+          freePlayer({ id: P2, balance: money(2000) }),
         ],
-        ownership: new Map([[boardPosition(2), "p2"]]),
+        ownership: new Map([[boardPosition(2), P2]]),
       });
 
       const dice: Dice = { roll: () => [1, 1] };
@@ -286,15 +292,15 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(2),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
+        { type: "RentPaid", from: P1, to: P2, amount: tile.rent },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(1000 - tile.rent);
       expect(p2.balance).toBe(2000 + tile.rent);
     });
@@ -304,10 +310,10 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(1000) }),
-          freePlayer({ id: "p2", balance: money(2000) }),
+          freePlayer({ id: P1, balance: money(1000) }),
+          freePlayer({ id: P2, balance: money(2000) }),
         ],
-        ownership: new Map([[boardPosition(5), "p2"]]),
+        ownership: new Map([[boardPosition(5), P2]]),
         improvements: new Map([[boardPosition(5), improvementLevel(3)]]),
       });
 
@@ -320,15 +326,15 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: rent },
+        { type: "RentPaid", from: P1, to: P2, amount: rent },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(1000 - rent);
       expect(p2.balance).toBe(2000 + rent);
     });
@@ -338,13 +344,13 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(1000) }),
-          freePlayer({ id: "p2", balance: money(2000) }),
+          freePlayer({ id: P1, balance: money(1000) }),
+          freePlayer({ id: P2, balance: money(2000) }),
         ],
         ownership: new Map([
-          [boardPosition(5), "p2"],
-          [boardPosition(7), "p2"],
-          [boardPosition(8), "p2"],
+          [boardPosition(5), P2],
+          [boardPosition(7), P2],
+          [boardPosition(8), P2],
         ]),
         improvements: new Map([[boardPosition(5), improvementLevel(3)]]),
       });
@@ -358,15 +364,15 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: rent },
+        { type: "RentPaid", from: P1, to: P2, amount: rent },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(1000 - rent);
       expect(p2.balance).toBe(2000 + rent);
     });
@@ -376,7 +382,7 @@ describe("RollDice", () => {
     it("charges no rent when landing on your own railroad", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
-        ownership: new Map([[boardPosition(4), "p1"]]),
+        ownership: new Map([[boardPosition(4), P1]]),
       });
 
       const dice: Dice = { roll: () => [1, 3] };
@@ -388,7 +394,7 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(4),
         },
@@ -401,8 +407,8 @@ describe("RollDice", () => {
     it("emits RentPaid when owned by other player", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
-        players: [freePlayer({}), freePlayer({ id: "p2" })],
-        ownership: new Map([[boardPosition(4), "p2"]]),
+        players: [freePlayer({}), freePlayer({ id: P2 })],
+        ownership: new Map([[boardPosition(4), P2]]),
       });
 
       const dice: Dice = { roll: () => [1, 3] };
@@ -414,11 +420,11 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(4),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: RAILROAD_RENT_BASE },
+        { type: "RentPaid", from: P1, to: P2, amount: RAILROAD_RENT_BASE },
       ]);
     });
 
@@ -427,9 +433,9 @@ describe("RollDice", () => {
       const state = makeState({
         players: [
           freePlayer({ balance: money(3000) }),
-          freePlayer({ id: "p2", balance: money(8000) }),
+          freePlayer({ id: P2, balance: money(8000) }),
         ],
-        ownership: new Map([[boardPosition(4), "p2"]]),
+        ownership: new Map([[boardPosition(4), P2]]),
       });
 
       const dice: Dice = { roll: () => [1, 3] };
@@ -438,8 +444,8 @@ describe("RollDice", () => {
 
       assertAccepted(result);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(3000 - RAILROAD_RENT_BASE);
       expect(p2.balance).toBe(8000 + RAILROAD_RENT_BASE);
     });
@@ -449,13 +455,13 @@ describe("RollDice", () => {
       const state = makeState({
         players: [
           freePlayer({ balance: money(3000) }),
-          freePlayer({ id: "p2", balance: money(8000) }),
+          freePlayer({ id: P2, balance: money(8000) }),
         ],
         ownership: new Map([
-          [boardPosition(4), "p2"],
-          [boardPosition(13), "p2"],
-          [boardPosition(23), "p2"],
-          [boardPosition(31), "p2"],
+          [boardPosition(4), P2],
+          [boardPosition(13), P2],
+          [boardPosition(23), P2],
+          [boardPosition(31), P2],
         ]),
       });
 
@@ -465,8 +471,8 @@ describe("RollDice", () => {
 
       assertAccepted(result);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.balance).toBe(3000 - 2000);
       expect(p2.balance).toBe(8000 + 2000);
     });
@@ -476,9 +482,9 @@ describe("RollDice", () => {
       const state = makeState({
         players: [
           freePlayer({ balance: RAILROAD_RENT_BASE }),
-          freePlayer({ id: "p2" }),
+          freePlayer({ id: P2 }),
         ],
-        ownership: new Map([[boardPosition(4), "p2"]]),
+        ownership: new Map([[boardPosition(4), P2]]),
       });
 
       const dice: Dice = { roll: () => [1, 3] };
@@ -487,7 +493,7 @@ describe("RollDice", () => {
 
       assertAccepted(result);
 
-      expect(() => inPlay(playerById(result.state, "p1"))).not.toThrow();
+      expect(() => inPlay(playerById(result.state, P1))).not.toThrow();
     });
 
     it("bankrupts a player who can't afford rent", () => {
@@ -495,9 +501,9 @@ describe("RollDice", () => {
       const state = makeState({
         players: [
           freePlayer({ balance: money(RAILROAD_RENT_BASE - 1) }),
-          freePlayer({ id: "p2", balance: money(8000) }),
+          freePlayer({ id: P2, balance: money(8000) }),
         ],
-        ownership: new Map([[boardPosition(4), "p2"]]),
+        ownership: new Map([[boardPosition(4), P2]]),
       });
 
       const dice: Dice = { roll: () => [1, 3] };
@@ -509,18 +515,18 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(4),
         },
         {
           type: "WentBankrupt",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      expect(p1).toEqual({ id: "p1", kind: "bankrupt" });
+      const p1 = playerById(result.state, P1);
+      expect(p1).toEqual({ id: P1, kind: "bankrupt" });
     });
   });
 
@@ -539,22 +545,22 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(20),
           to: boardPosition(27),
         },
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(27),
           to: boardPosition(JAIL_POSITION),
         },
-        { type: "SentToJail", playerId: "p1" },
+        { type: "SentToJail", playerId: P1 },
       ]);
 
       const p1 = currentPlayer(result.state);
       expect(p1).toEqual({
-        id: "p1",
+        id: P1,
         balance: STARTING_BALANCE,
         position: JAIL_POSITION,
         kind: "jailed",
@@ -574,7 +580,7 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(9),
         },
@@ -604,13 +610,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "RemainedInJail",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
       const p1 = currentPlayer(result.state);
       expect(p1).toEqual({
-        id: "p1",
+        id: P1,
         position: JAIL_POSITION,
         balance: STARTING_BALANCE,
         kind: "jailed",
@@ -638,24 +644,24 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "FreedFromJail",
-          playerId: "p1",
+          playerId: P1,
         },
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(9),
           to: boardPosition(19),
         },
         {
           type: "LandedOnProperty",
-          playerId: "p1",
+          playerId: P1,
           position: boardPosition(19),
         },
       ]);
 
       const p1 = currentPlayer(result.state);
       expect(p1).toEqual({
-        id: "p1",
+        id: P1,
         position: boardPosition(19),
         balance: STARTING_BALANCE,
         kind: "free",
@@ -682,13 +688,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "FreedFromJail",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
       const p1 = currentPlayer(result.state);
       expect(p1).toEqual({
-        id: "p1",
+        id: P1,
         position: JAIL_POSITION,
         balance: STARTING_BALANCE,
         kind: "free",
@@ -699,7 +705,7 @@ describe("RollDice", () => {
   describe("Free Parking", () => {
     it("lands a lone player with only the one Moved event", () => {
       const state = makeState({
-        players: [freePlayer({ id: "p1", position: boardPosition(11) })],
+        players: [freePlayer({ id: P1, position: boardPosition(11) })],
       });
 
       const dice: Dice = { roll: () => [3, 4] };
@@ -711,21 +717,21 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(11),
           to: FREE_PARKING_POSITION,
         },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
+      const p1 = inPlay(playerById(result.state, P1));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
     });
 
     it("draws a free player onto the tile", () => {
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", position: boardPosition(11) }),
-          freePlayer({ id: "p2", position: boardPosition(5) }),
+          freePlayer({ id: P1, position: boardPosition(11) }),
+          freePlayer({ id: P2, position: boardPosition(5) }),
         ],
       });
 
@@ -738,21 +744,21 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(11),
           to: FREE_PARKING_POSITION,
         },
         {
           type: "Moved",
-          playerId: "p2",
+          playerId: P2,
           from: boardPosition(5),
           to: FREE_PARKING_POSITION,
         },
-        { type: "DrawnToFreeParking", playerId: "p2" },
+        { type: "DrawnToFreeParking", playerId: P2 },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
       expect(p2.position).toEqual(FREE_PARKING_POSITION);
     });
@@ -760,10 +766,10 @@ describe("RollDice", () => {
     it("draws every other free player onto the tile", () => {
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", position: boardPosition(11) }),
-          freePlayer({ id: "p2", position: boardPosition(5) }),
-          freePlayer({ id: "p3", position: boardPosition(2) }),
-          freePlayer({ id: "p4", position: boardPosition(8) }),
+          freePlayer({ id: P1, position: boardPosition(11) }),
+          freePlayer({ id: P2, position: boardPosition(5) }),
+          freePlayer({ id: P3, position: boardPosition(2) }),
+          freePlayer({ id: P4, position: boardPosition(8) }),
         ],
       });
 
@@ -776,37 +782,37 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(11),
           to: FREE_PARKING_POSITION,
         },
         {
           type: "Moved",
-          playerId: "p2",
+          playerId: P2,
           from: boardPosition(5),
           to: FREE_PARKING_POSITION,
         },
-        { type: "DrawnToFreeParking", playerId: "p2" },
+        { type: "DrawnToFreeParking", playerId: P2 },
         {
           type: "Moved",
-          playerId: "p3",
+          playerId: P3,
           from: boardPosition(2),
           to: FREE_PARKING_POSITION,
         },
-        { type: "DrawnToFreeParking", playerId: "p3" },
+        { type: "DrawnToFreeParking", playerId: P3 },
         {
           type: "Moved",
-          playerId: "p4",
+          playerId: P4,
           from: boardPosition(8),
           to: FREE_PARKING_POSITION,
         },
-        { type: "DrawnToFreeParking", playerId: "p4" },
+        { type: "DrawnToFreeParking", playerId: P4 },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
-      const p3 = inPlay(playerById(result.state, "p3"));
-      const p4 = inPlay(playerById(result.state, "p4"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
+      const p3 = inPlay(playerById(result.state, P3));
+      const p4 = inPlay(playerById(result.state, P4));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
       expect(p2.position).toEqual(FREE_PARKING_POSITION);
       expect(p3.position).toEqual(FREE_PARKING_POSITION);
@@ -816,9 +822,9 @@ describe("RollDice", () => {
     it("leaves a jailed player in jail", () => {
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({ id: P1, position: boardPosition(11) }),
           jailedPlayer({
-            id: "p2",
+            id: P2,
             position: JAIL_POSITION,
             kind: "jailed",
             failedAttempts: 0,
@@ -835,14 +841,14 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(11),
           to: FREE_PARKING_POSITION,
         },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
       expect(p2.position).toEqual(JAIL_POSITION);
     });
@@ -850,9 +856,9 @@ describe("RollDice", () => {
     it("does not re-move a player already standing on Free Parking", () => {
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({ id: P1, position: boardPosition(11) }),
           freePlayer({
-            id: "p2",
+            id: P2,
             position: FREE_PARKING_POSITION,
           }),
         ],
@@ -867,14 +873,14 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(11),
           to: FREE_PARKING_POSITION,
         },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
       expect(p2.position).toEqual(FREE_PARKING_POSITION);
     });
@@ -882,9 +888,9 @@ describe("RollDice", () => {
     it("collects no GO for a player drawn across a GO", () => {
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", position: boardPosition(11) }),
+          freePlayer({ id: P1, position: boardPosition(11) }),
           freePlayer({
-            id: "p2",
+            id: P2,
             position: boardPosition(30),
           }),
         ],
@@ -899,21 +905,21 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(11),
           to: FREE_PARKING_POSITION,
         },
         {
           type: "Moved",
-          playerId: "p2",
+          playerId: P2,
           from: boardPosition(30),
           to: FREE_PARKING_POSITION,
         },
-        { type: "DrawnToFreeParking", playerId: "p2" },
+        { type: "DrawnToFreeParking", playerId: P2 },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p1 = inPlay(playerById(result.state, P1));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
       expect(p2.position).toEqual(FREE_PARKING_POSITION);
     });
@@ -921,8 +927,8 @@ describe("RollDice", () => {
     it("does not draw a bankrupt player to Free Parking", () => {
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", position: boardPosition(9) }),
-          bankruptPlayer({ id: "p2" }),
+          freePlayer({ id: P1, position: boardPosition(9) }),
+          bankruptPlayer({ id: P2 }),
         ],
       });
 
@@ -935,13 +941,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(9),
           to: FREE_PARKING_POSITION,
         },
       ]);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
+      const p1 = inPlay(playerById(result.state, P1));
       expect(p1.position).toEqual(FREE_PARKING_POSITION);
     });
   });
@@ -962,10 +968,10 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(tile.rent - 1) }),
-          freePlayer({ id: "p2" }),
+          freePlayer({ id: P1, balance: money(tile.rent - 1) }),
+          freePlayer({ id: P2 }),
         ],
-        ownership: new Map([[boardPosition(5), "p2"]]),
+        ownership: new Map([[boardPosition(5), P2]]),
       });
 
       const dice: Dice = { roll: () => [2, 3] };
@@ -977,19 +983,19 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
         {
           type: "WentBankrupt",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      const p2 = inPlay(playerById(result.state, "p2"));
-      expect(p1).toEqual({ id: "p1", kind: "bankrupt" });
+      const p1 = playerById(result.state, P1);
+      const p2 = inPlay(playerById(result.state, P2));
+      expect(p1).toEqual({ id: P1, kind: "bankrupt" });
       expect(p2.balance).toBe(STARTING_BALANCE);
     });
 
@@ -998,10 +1004,10 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: tile.rent }),
-          freePlayer({ id: "p2" }),
+          freePlayer({ id: P1, balance: tile.rent }),
+          freePlayer({ id: P2 }),
         ],
-        ownership: new Map([[boardPosition(5), "p2"]]),
+        ownership: new Map([[boardPosition(5), P2]]),
       });
 
       const dice: Dice = { roll: () => [2, 3] };
@@ -1013,14 +1019,14 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
-        { type: "RentPaid", from: "p1", to: "p2", amount: tile.rent },
+        { type: "RentPaid", from: P1, to: P2, amount: tile.rent },
       ]);
 
-      expect(() => inPlay(playerById(result.state, "p1"))).not.toThrow();
+      expect(() => inPlay(playerById(result.state, P1))).not.toThrow();
     });
 
     it("releases the bankrupt player's properties", () => {
@@ -1028,12 +1034,12 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(tile.rent - 1) }),
-          freePlayer({ id: "p2" }),
+          freePlayer({ id: P1, balance: money(tile.rent - 1) }),
+          freePlayer({ id: P2 }),
         ],
         ownership: new Map([
-          [boardPosition(5), "p2"],
-          [boardPosition(7), "p1"],
+          [boardPosition(5), P2],
+          [boardPosition(7), P1],
         ]),
       });
 
@@ -1046,13 +1052,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
         {
           type: "WentBankrupt",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
@@ -1064,12 +1070,12 @@ describe("RollDice", () => {
 
       const state = makeState({
         players: [
-          freePlayer({ id: "p1", balance: money(tile.rent - 1) }),
-          freePlayer({ id: "p2" }),
+          freePlayer({ id: P1, balance: money(tile.rent - 1) }),
+          freePlayer({ id: P2 }),
         ],
         ownership: new Map([
-          [boardPosition(5), "p2"],
-          [boardPosition(7), "p1"],
+          [boardPosition(5), P2],
+          [boardPosition(7), P1],
         ]),
         improvements: new Map([[boardPosition(7), improvementLevel(2)]]),
       });
@@ -1083,13 +1089,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(5),
         },
         {
           type: "WentBankrupt",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
@@ -1102,7 +1108,7 @@ describe("RollDice", () => {
       const tile = taxTileAt(boardPosition(3));
 
       const state = makeState({
-        players: [freePlayer({ id: "p1" })],
+        players: [freePlayer({ id: P1 })],
       });
 
       const dice: Dice = { roll: () => [1, 2] };
@@ -1114,13 +1120,13 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(3),
         },
         {
           type: "TaxPaid",
-          playerId: "p1",
+          playerId: P1,
           amount: tile.amount,
         },
       ]);
@@ -1130,7 +1136,7 @@ describe("RollDice", () => {
       const tile = taxTileAt(boardPosition(3));
 
       const state = makeState({
-        players: [freePlayer({ id: "p1" })],
+        players: [freePlayer({ id: P1 })],
       });
 
       const dice: Dice = { roll: () => [1, 2] };
@@ -1139,7 +1145,7 @@ describe("RollDice", () => {
 
       assertAccepted(result);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
+      const p1 = inPlay(playerById(result.state, P1));
       expect(p1.balance).toBe(STARTING_BALANCE - tile.amount);
     });
 
@@ -1147,7 +1153,7 @@ describe("RollDice", () => {
       expect(() => taxTileAt(boardPosition(3))).not.toThrow();
 
       const state = makeState({
-        players: [freePlayer({ id: "p1" }), freePlayer({ id: "p2" })],
+        players: [freePlayer({ id: P1 }), freePlayer({ id: P2 })],
       });
 
       const dice: Dice = { roll: () => [1, 2] };
@@ -1156,7 +1162,7 @@ describe("RollDice", () => {
 
       assertAccepted(result);
 
-      const p2 = inPlay(playerById(result.state, "p2"));
+      const p2 = inPlay(playerById(result.state, P2));
       expect(p2.balance).toBe(STARTING_BALANCE);
     });
 
@@ -1164,7 +1170,7 @@ describe("RollDice", () => {
       const tile = taxTileAt(boardPosition(3));
 
       const state = makeState({
-        players: [freePlayer({ id: "p1", balance: money(tile.amount - 1) })],
+        players: [freePlayer({ id: P1, balance: money(tile.amount - 1) })],
       });
 
       const dice: Dice = { roll: () => [1, 2] };
@@ -1176,25 +1182,25 @@ describe("RollDice", () => {
       expect(result.events).toEqual([
         {
           type: "Moved",
-          playerId: "p1",
+          playerId: P1,
           from: boardPosition(0),
           to: boardPosition(3),
         },
         {
           type: "WentBankrupt",
-          playerId: "p1",
+          playerId: P1,
         },
       ]);
 
-      const p1 = playerById(result.state, "p1");
-      expect(p1).toEqual({ id: "p1", kind: "bankrupt" });
+      const p1 = playerById(result.state, P1);
+      expect(p1).toEqual({ id: P1, kind: "bankrupt" });
     });
 
     it("does not bankrupt a player whose balance exactly covers the tax", () => {
       const tile = taxTileAt(boardPosition(3));
 
       const state = makeState({
-        players: [freePlayer({ id: "p1", balance: tile.amount })],
+        players: [freePlayer({ id: P1, balance: tile.amount })],
       });
 
       const dice: Dice = { roll: () => [1, 2] };
@@ -1203,7 +1209,7 @@ describe("RollDice", () => {
 
       assertAccepted(result);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
+      const p1 = inPlay(playerById(result.state, P1));
       expect(p1.balance).toBe(0);
     });
   });
@@ -1229,9 +1235,9 @@ describe("BuyProperty", () => {
       assertAccepted(result);
 
       expect(result.events).toEqual([
-        { type: "PropertyBought", playerId: "p1", position: boardPosition(1) },
+        { type: "PropertyBought", playerId: P1, position: boardPosition(1) },
       ]);
-      expect(result.state.ownership.get(boardPosition(1))).toBe("p1");
+      expect(result.state.ownership.get(boardPosition(1))).toBe(P1);
     });
 
     it("deducts the property's price from the buyer's balance", () => {
@@ -1275,7 +1281,7 @@ describe("BuyProperty", () => {
         players: [
           freePlayer({ position: boardPosition(1), balance: money(0) }),
         ],
-        ownership: new Map([[boardPosition(1), "p2"]]),
+        ownership: new Map([[boardPosition(1), P2]]),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
@@ -1296,7 +1302,7 @@ describe("BuyProperty", () => {
       assertAccepted(result);
 
       expect(result.events).toEqual([
-        { type: "PropertyBought", playerId: "p1", position: boardPosition(4) },
+        { type: "PropertyBought", playerId: P1, position: boardPosition(4) },
       ]);
     });
 
@@ -1310,7 +1316,7 @@ describe("BuyProperty", () => {
 
       assertAccepted(result);
 
-      expect(result.state.ownership.get(boardPosition(4))).toBe("p1");
+      expect(result.state.ownership.get(boardPosition(4))).toBe(P1);
     });
 
     it("deducts the railroad's price from the player's balance ", () => {
@@ -1323,7 +1329,7 @@ describe("BuyProperty", () => {
 
       assertAccepted(result);
 
-      const p1 = inPlay(playerById(result.state, "p1"));
+      const p1 = inPlay(playerById(result.state, P1));
       expect(p1.balance).toBe(STARTING_BALANCE - railroad.price);
     });
 
@@ -1332,9 +1338,9 @@ describe("BuyProperty", () => {
       const state = makeState({
         players: [
           freePlayer({ position: boardPosition(4) }),
-          freePlayer({ id: "p2" }),
+          freePlayer({ id: P2 }),
         ],
-        ownership: new Map([[boardPosition(4), "p2"]]),
+        ownership: new Map([[boardPosition(4), P2]]),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
@@ -1366,7 +1372,7 @@ describe("BuyProperty", () => {
 describe("ImproveProperty", () => {
   it("raises an owned property to the requested level", () => {
     const state = makeState({
-      ownership: new Map([[boardPosition(5), "p1"]]),
+      ownership: new Map([[boardPosition(5), P1]]),
     });
 
     const result = reduce(
@@ -1384,7 +1390,7 @@ describe("ImproveProperty", () => {
     expect(result.events).toEqual([
       {
         type: "PropertyImproved",
-        playerId: "p1",
+        playerId: P1,
         position: boardPosition(5),
         level: improvementLevel(4),
       },
@@ -1410,7 +1416,7 @@ describe("ImproveProperty", () => {
 
   it("rejects improving a property the player does not own", () => {
     const state = makeState({
-      ownership: new Map([[boardPosition(5), "p2"]]),
+      ownership: new Map([[boardPosition(5), P2]]),
     });
 
     const result = reduce(
@@ -1430,7 +1436,7 @@ describe("ImproveProperty", () => {
     const tile = propertyTileAt(boardPosition(5));
 
     const state = makeState({
-      ownership: new Map([[boardPosition(5), "p1"]]),
+      ownership: new Map([[boardPosition(5), P1]]),
     });
 
     const result = reduce(
@@ -1446,13 +1452,13 @@ describe("ImproveProperty", () => {
     assertAccepted(result);
 
     const cost = tile.costPerLevel * (4 - 1); // rate * levels added, from default 1
-    const p1 = inPlay(playerById(result.state, "p1"));
+    const p1 = inPlay(playerById(result.state, P1));
     expect(p1.balance).toBe(STARTING_BALANCE - cost);
   });
 
   it("rejects improving not above the current level", () => {
     const state = makeState({
-      ownership: new Map([[boardPosition(5), "p1"]]),
+      ownership: new Map([[boardPosition(5), P1]]),
     });
 
     const result = reduce(
@@ -1490,7 +1496,7 @@ describe("ImproveProperty", () => {
     const cost = tile.costPerLevel * (4 - 1);
     const state = makeState({
       players: [freePlayer({ balance: money(cost - 1) })],
-      ownership: new Map([[boardPosition(5), "p1"]]),
+      ownership: new Map([[boardPosition(5), P1]]),
     });
 
     const result = reduce(
@@ -1510,7 +1516,7 @@ describe("ImproveProperty", () => {
     const tile = propertyTileAt(boardPosition(5));
 
     const state = makeState({
-      ownership: new Map([[boardPosition(5), "p1"]]),
+      ownership: new Map([[boardPosition(5), P1]]),
       improvements: new Map([[boardPosition(5), improvementLevel(2)]]),
     });
 
@@ -1527,7 +1533,7 @@ describe("ImproveProperty", () => {
     assertAccepted(result);
 
     const cost = tile.costPerLevel * (4 - 2);
-    const p1 = inPlay(playerById(result.state, "p1"));
+    const p1 = inPlay(playerById(result.state, P1));
     expect(p1.balance).toBe(STARTING_BALANCE - cost);
   });
 });
@@ -1550,12 +1556,12 @@ describe("PayJailFine", () => {
     assertAccepted(result);
 
     expect(result.events).toEqual([
-      { type: "JailFinePaid", playerId: "p1", amount: JAIL_FINE },
+      { type: "JailFinePaid", playerId: P1, amount: JAIL_FINE },
     ]);
 
     const p1 = currentPlayer(result.state);
     expect(p1).toEqual({
-      id: "p1",
+      id: P1,
       position: JAIL_POSITION,
       balance: 1000 - JAIL_FINE,
       kind: "free",
@@ -1598,7 +1604,7 @@ describe("PayJailFine", () => {
 
 function freePlayer(overrides: Partial<FreePlayer> = {}): FreePlayer {
   return {
-    id: "p1",
+    id: P1,
     kind: "free",
     position: boardPosition(0),
     balance: STARTING_BALANCE,
@@ -1608,7 +1614,7 @@ function freePlayer(overrides: Partial<FreePlayer> = {}): FreePlayer {
 
 function jailedPlayer(overrides: Partial<JailedPlayer> = {}): JailedPlayer {
   return {
-    id: "p1",
+    id: P1,
     kind: "jailed",
     position: boardPosition(0),
     balance: STARTING_BALANCE,
@@ -1621,7 +1627,7 @@ function bankruptPlayer(
   overrides: Partial<BankruptPlayer> = {},
 ): BankruptPlayer {
   return {
-    id: "p1",
+    id: P1,
     kind: "bankrupt",
     ...overrides,
   };
@@ -1637,7 +1643,7 @@ function inPlay(player: Player): InPlayPlayer {
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [freePlayer({})],
-    currentPlayerId: "p1",
+    currentPlayerId: P1,
     ownership: new Map(),
     improvements: new Map(),
     ...overrides,

@@ -2,7 +2,6 @@ import type { Command } from "./commands";
 import type { GameEvent } from "./events";
 import {
   type GameState,
-  type PlayerId,
   type Player,
   currentPlayer,
   getImprovementLevel,
@@ -13,6 +12,7 @@ import {
   type InPlayFields,
   inPlayPlayerById,
 } from "./domain/state";
+import { type PlayerId } from "./domain/playerId";
 import {
   BOARD_SIZE,
   boardPosition,

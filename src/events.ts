@@ -1,7 +1,7 @@
 import type { ImprovementLevel } from "./domain/improvementLevel";
 import type { Money } from "./domain/money";
 import type { BoardPosition } from "./domain/position";
-import type { PlayerId } from "./domain/state";
+import type { PlayerId } from "./domain/playerId";
 
 export type GameEvent =
   | {
