@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { reduce, type Accepted, type Dice, type Reduction } from "./engine";
+import {
+  reduce,
+  type Accepted,
+  type Deck,
+  type Dice,
+  type EngineDeps,
+  type Reduction,
+} from "./engine";
 import {
   BOARD_SIZE,
   boardPosition,
@@ -24,17 +31,29 @@ import {
   STARTING_BALANCE,
 } from "./domain/rules";
 import type { Tile } from "./domain/tiles";
-import { money } from "./domain/money";
+import { money, type Money } from "./domain/money";
 import { playerId } from "./domain/playerId";
+import { cardId } from "./domain/cardId";
+import type { Card } from "./domain/card";
 
 const P1 = playerId("p1");
 const P2 = playerId("p2");
 const P3 = playerId("p3");
 const P4 = playerId("p4");
 
+const CREDIT_CARD_1 = cardId("credit-1");
+const DEBIT_CARD_1 = cardId("debit-1");
+const REPAIR_CARD = cardId("repair");
+
 const noDice: Dice = {
   roll: () => {
-    throw new Error("BuyProperty must not roll");
+    throw new Error("this test must not roll");
+  },
+};
+
+const noDeck: Deck = {
+  draw: () => {
+    throw new Error("This test must not draw");
   },
 };
 
@@ -47,7 +66,7 @@ describe("RollDice", () => {
       const dice: Dice = { roll: () => [3, 4] };
 
       // Act
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -70,15 +89,16 @@ describe("RollDice", () => {
     });
 
     it("emits PassedGo when player passes GO", () => {
+      expect(() => propertyTileAt(boardPosition(5))).not.toThrow();
       // Arrange
       const state = makeState({
         players: [freePlayer({ position: boardPosition(BOARD_SIZE - 1) })],
       });
 
-      const dice: Dice = { roll: () => [3, 4] };
+      const dice: Dice = { roll: () => [2, 4] };
 
       // Act
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -87,18 +107,18 @@ describe("RollDice", () => {
           type: "Moved",
           playerId: P1,
           from: boardPosition(BOARD_SIZE - 1),
-          to: boardPosition(6),
+          to: boardPosition(5),
         },
         { type: "PassedGo", playerId: P1 },
         {
           type: "LandedOnProperty",
           playerId: P1,
-          position: boardPosition(6),
+          position: boardPosition(5),
         },
       ]);
 
       const p1 = inPlay(currentPlayer(result.state));
-      expect(p1.position).toBe(boardPosition(6));
+      expect(p1.position).toBe(boardPosition(5));
     });
 
     it("emits PassedGo when player lands on GO", () => {
@@ -110,7 +130,7 @@ describe("RollDice", () => {
       const dice: Dice = { roll: () => [1, 1] };
 
       // Act
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -135,7 +155,7 @@ describe("RollDice", () => {
       const dice: Dice = { roll: () => [1, 1] };
 
       // Act
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -159,7 +179,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -193,7 +213,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [2, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -220,7 +240,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [2, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -252,7 +272,7 @@ describe("RollDice", () => {
       });
 
       const dice: Dice = { roll: () => [1, 1] };
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -285,7 +305,7 @@ describe("RollDice", () => {
       });
 
       const dice: Dice = { roll: () => [1, 1] };
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -318,7 +338,7 @@ describe("RollDice", () => {
       });
 
       const dice: Dice = { roll: () => [2, 3] };
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -356,7 +376,7 @@ describe("RollDice", () => {
       });
 
       const dice: Dice = { roll: () => [2, 3] };
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -387,7 +407,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -413,7 +433,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -440,7 +460,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -467,7 +487,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -489,7 +509,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -508,7 +528,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -538,7 +558,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -573,7 +593,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [4, 5] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -603,7 +623,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [4, 5] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -637,7 +657,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [5, 5] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -681,7 +701,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [4, 5] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -710,7 +730,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -737,7 +757,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -775,7 +795,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -834,7 +854,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -866,7 +886,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -898,7 +918,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [3, 4] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -934,7 +954,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [4, 5] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -958,7 +978,7 @@ describe("RollDice", () => {
         players: [bankruptPlayer()],
       });
 
-      const result = reduce(state, { type: "RollDice" }, { dice: noDice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({}));
 
       expect(result).toEqual({ status: "rejected", reason: "Bankrupt" });
     });
@@ -976,7 +996,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [2, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1012,7 +1032,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [2, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1045,7 +1065,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [2, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1082,7 +1102,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [2, 3] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1113,7 +1133,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 2] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1141,7 +1161,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 2] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1158,7 +1178,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 2] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1175,7 +1195,7 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 2] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
@@ -1205,12 +1225,335 @@ describe("RollDice", () => {
 
       const dice: Dice = { roll: () => [1, 2] };
 
-      const result = reduce(state, { type: "RollDice" }, { dice });
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
 
       const p1 = inPlay(playerById(result.state, P1));
       expect(p1.balance).toBe(0);
+    });
+  });
+
+  describe("Cards", () => {
+    it("a credit card pays the lander from the bank", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const state = makeState({});
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const amount = money(500);
+      const card: Card = {
+        id: CREDIT_CARD_1,
+        kind: "credit",
+        amount,
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: CREDIT_CARD_1 },
+        { type: "ReceivedFromBank", playerId: P1, amount },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(STARTING_BALANCE + amount);
+    });
+
+    it("a debit card charges the lander to the bank", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const state = makeState({});
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const amount = money(500);
+      const card: Card = {
+        id: DEBIT_CARD_1,
+        kind: "debit",
+        amount,
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: DEBIT_CARD_1 },
+        { type: "PaidToBank", playerId: P1, amount },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(STARTING_BALANCE - amount);
+    });
+
+    it("a debit card the lander can't afford bankrupts them", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const amount = money(500);
+      const state = makeState({
+        players: [freePlayer({ balance: money(amount - 1) })],
+      });
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const card: Card = {
+        id: DEBIT_CARD_1,
+        kind: "debit",
+        amount,
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: DEBIT_CARD_1 },
+        { type: "WentBankrupt", playerId: P1 },
+      ]);
+
+      const p1 = currentPlayer(result.state);
+      expect(p1).toEqual({ id: P1, kind: "bankrupt" });
+    });
+
+    it("does not bankrupt a lander whose balance exactly covers a debit card", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const amount = money(500);
+      const state = makeState({
+        players: [freePlayer({ balance: money(amount) })],
+      });
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const card: Card = {
+        id: DEBIT_CARD_1,
+        kind: "debit",
+        amount,
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: DEBIT_CARD_1 },
+        { type: "PaidToBank", playerId: P1, amount },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(0);
+    });
+
+    it("a repair card charges per owned property plus per improvement", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const state = makeState({
+        ownership: new Map([
+          [boardPosition(1), P1],
+          [boardPosition(35), P1],
+        ]),
+        improvements: new Map([[boardPosition(1), improvementLevel(4)]]),
+      });
+
+      const amount: Money = money(400 * 2 + 200 * 3);
+      const dice: Dice = { roll: () => [4, 2] };
+      const card: Card = {
+        id: REPAIR_CARD,
+        kind: "repair",
+        perProperty: money(400),
+        perImprovement: money(200),
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: REPAIR_CARD },
+        { type: "PaidToBank", playerId: P1, amount },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(STARTING_BALANCE - amount);
+    });
+
+    it("a repair card charges nothing when the lander holds nothing", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const state = makeState({});
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const card: Card = {
+        id: REPAIR_CARD,
+        kind: "repair",
+        perProperty: money(400),
+        perImprovement: money(200),
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: REPAIR_CARD },
+        { type: "PaidToBank", playerId: P1, amount: 0 },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(STARTING_BALANCE);
+    });
+
+    it("a repair card does not charge per railways", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const state = makeState({
+        ownership: new Map([
+          [boardPosition(4), P1],
+          [boardPosition(13), P1],
+        ]),
+        improvements: new Map([[boardPosition(1), improvementLevel(4)]]),
+      });
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const card: Card = {
+        id: REPAIR_CARD,
+        kind: "repair",
+        perProperty: money(400),
+        perImprovement: money(200),
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: REPAIR_CARD },
+        { type: "PaidToBank", playerId: P1, amount: money(0) },
+      ]);
+
+      const p1 = inPlay(currentPlayer(result.state));
+      expect(p1.balance).toBe(STARTING_BALANCE);
+    });
+
+    it("a repair card bankrupts a lander who can't afford the repair amount", () => {
+      expect(() => chanceTileAt(boardPosition(6))).not.toThrow();
+
+      const amount: Money = money(400 * 2 + 200 * 3);
+      const state = makeState({
+        players: [freePlayer({ balance: money(amount - 1) })],
+        ownership: new Map([
+          [boardPosition(1), P1],
+          [boardPosition(35), P1],
+        ]),
+        improvements: new Map([[boardPosition(1), improvementLevel(4)]]),
+      });
+
+      const dice: Dice = { roll: () => [4, 2] };
+      const card: Card = {
+        id: REPAIR_CARD,
+        kind: "repair",
+        perProperty: money(400),
+        perImprovement: money(200),
+      };
+      const deck: Deck = { draw: () => card };
+
+      const result = reduce(
+        state,
+        { type: "RollDice" },
+        makeDeps({ dice, deck }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(6),
+        },
+        { type: "CardDrawn", playerId: P1, cardId: REPAIR_CARD },
+        { type: "WentBankrupt", playerId: P1 },
+      ]);
+
+      const p1 = currentPlayer(result.state);
+      expect(p1).toEqual({ id: P1, kind: "bankrupt" });
     });
   });
 });
@@ -1219,7 +1562,7 @@ describe("BuyProperty", () => {
   it("rejects BuyProperty when the player is not standing on a buyable tile", () => {
     const state = makeState({});
 
-    const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+    const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
     expect(result).toEqual({ status: "rejected", reason: "NotBuyable" });
   });
@@ -1230,7 +1573,7 @@ describe("BuyProperty", () => {
         players: [freePlayer({ position: boardPosition(1) })],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       assertAccepted(result);
 
@@ -1247,7 +1590,7 @@ describe("BuyProperty", () => {
         players: [freePlayer({ position: boardPosition(1) })],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       assertAccepted(result);
 
@@ -1267,7 +1610,7 @@ describe("BuyProperty", () => {
         ],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       expect(result).toEqual({
         status: "rejected",
@@ -1284,7 +1627,7 @@ describe("BuyProperty", () => {
         ownership: new Map([[boardPosition(1), P2]]),
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       expect(result).toEqual({ status: "rejected", reason: "AlreadyOwned" });
     });
@@ -1297,7 +1640,7 @@ describe("BuyProperty", () => {
         players: [freePlayer({ position: boardPosition(4) })],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       assertAccepted(result);
 
@@ -1312,7 +1655,7 @@ describe("BuyProperty", () => {
         players: [freePlayer({ position: boardPosition(4) })],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       assertAccepted(result);
 
@@ -1325,7 +1668,7 @@ describe("BuyProperty", () => {
         players: [freePlayer({ position: boardPosition(4) })],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       assertAccepted(result);
 
@@ -1343,7 +1686,7 @@ describe("BuyProperty", () => {
         ownership: new Map([[boardPosition(4), P2]]),
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       expect(result).toEqual({ status: "rejected", reason: "AlreadyOwned" });
     });
@@ -1359,7 +1702,7 @@ describe("BuyProperty", () => {
         ],
       });
 
-      const result = reduce(state, { type: "BuyProperty" }, { dice: noDice });
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
 
       expect(result).toEqual({
         status: "rejected",
@@ -1382,7 +1725,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(5),
         toLevel: improvementLevel(4),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     assertAccepted(result);
@@ -1408,7 +1751,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(0),
         toLevel: improvementLevel(4),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     expect(result).toEqual({ status: "rejected", reason: "NotAProperty" });
@@ -1426,7 +1769,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(5),
         toLevel: improvementLevel(4),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     expect(result).toEqual({ status: "rejected", reason: "NotOwner" });
@@ -1446,7 +1789,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(5),
         toLevel: improvementLevel(4),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     assertAccepted(result);
@@ -1468,7 +1811,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(5),
         toLevel: improvementLevel(1),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     expect(result).toEqual({ status: "rejected", reason: "NotAnUpgrade" });
@@ -1484,7 +1827,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(0),
         toLevel: improvementLevel(1),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     expect(result).toEqual({ status: "rejected", reason: "NotAProperty" });
@@ -1506,7 +1849,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(5),
         toLevel: improvementLevel(4),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     expect(result).toEqual({ status: "rejected", reason: "InsufficientFunds" });
@@ -1527,7 +1870,7 @@ describe("ImproveProperty", () => {
         position: boardPosition(5),
         toLevel: improvementLevel(4),
       },
-      { dice: noDice },
+      makeDeps({}),
     );
 
     assertAccepted(result);
@@ -1551,7 +1894,7 @@ describe("PayJailFine", () => {
       ],
     });
 
-    const result = reduce(state, { type: "PayJailFine" }, { dice: noDice });
+    const result = reduce(state, { type: "PayJailFine" }, makeDeps({}));
 
     assertAccepted(result);
 
@@ -1579,7 +1922,7 @@ describe("PayJailFine", () => {
       ],
     });
 
-    const result = reduce(state, { type: "PayJailFine" }, { dice: noDice });
+    const result = reduce(state, { type: "PayJailFine" }, makeDeps({}));
 
     expect(result).toEqual({ status: "rejected", reason: "NotInJail" });
   });
@@ -1596,7 +1939,7 @@ describe("PayJailFine", () => {
       ],
     });
 
-    const result = reduce(state, { type: "PayJailFine" }, { dice: noDice });
+    const result = reduce(state, { type: "PayJailFine" }, makeDeps({}));
 
     expect(result).toEqual({ status: "rejected", reason: "InsufficientFunds" });
   });
@@ -1650,6 +1993,14 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
   };
 }
 
+function makeDeps(overrides: Partial<EngineDeps> = {}): EngineDeps {
+  return {
+    dice: noDice,
+    deck: noDeck,
+    ...overrides,
+  };
+}
+
 function taxTileAt(position: BoardPosition): Tile & { kind: "tax" } {
   const tile = tileAt(boardPosition(position));
   if (tile.kind !== "tax") throw new Error(`expected a tax at ${position}`);
@@ -1667,6 +2018,13 @@ function railroadTileAt(position: BoardPosition): Tile & { kind: "railroad" } {
   const tile = tileAt(boardPosition(position));
   if (tile.kind !== "railroad")
     throw new Error(`expected a railroad at ${position}`);
+  return tile;
+}
+
+function chanceTileAt(position: BoardPosition): Tile & { kind: "chance" } {
+  const tile = tileAt(boardPosition(position));
+  if (tile.kind !== "chance")
+    throw new Error(`expected a chance at ${position}`);
   return tile;
 }
 

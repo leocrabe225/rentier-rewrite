@@ -18,11 +18,12 @@ import {
   boardPosition,
   type BoardPosition,
 } from "./domain/position";
-import type { PropertyColor } from "./domain/tiles";
+import type { PropertyColor, Tile } from "./domain/tiles";
 import {
   FREE_PARKING_POSITION,
   groupPositions,
   JAIL_POSITION,
+  propertyPositions,
   railroadPositions,
   tileAt,
 } from "./domain/board";
@@ -33,15 +34,20 @@ import {
   RAILROAD_RENT_BASE,
 } from "./domain/rules";
 import { money, type Money } from "./domain/money";
+import type { Card } from "./domain/card";
 
 // Two dice, not one. Doubles matter for jail rules later.
 export type DiceRoll = readonly [first: number, second: number];
 export interface Dice {
   roll(): DiceRoll;
 }
+export interface Deck {
+  draw(): Card;
+}
 
 export interface EngineDeps {
   readonly dice: Dice;
+  readonly deck: Deck;
 }
 
 export interface EngineResult {
@@ -231,7 +237,7 @@ function move(
     events.push({ type: "PassedGo", playerId: movedPlayer.id });
   }
 
-  const landing = applyLanding(moved, movedPlayer);
+  const landing = applyLanding(moved, movedPlayer, deps);
   events.push(...landing.events);
 
   return {
@@ -377,131 +383,217 @@ function withImprovement(
   };
 }
 
-function applyLanding(state: GameState, player: FreePlayer): EngineResult {
+function applyLanding(
+  state: GameState,
+  player: FreePlayer,
+  deps: EngineDeps,
+): EngineResult {
   const tile = tileAt(player.position);
 
   switch (tile.kind) {
     case "go":
       return { state, events: [] };
     case "property": {
-      const ownerId = state.ownership.get(player.position);
-
-      if (ownerId === undefined) {
-        return {
-          state,
-          events: [
-            {
-              type: "LandedOnProperty",
-              playerId: player.id,
-              position: player.position,
-            },
-          ],
-        };
-      }
-
-      if (ownerId === player.id) {
-        return {
-          state,
-          events: [],
-        };
-      }
-
-      const owner = inPlayPlayerById(state, ownerId);
-
-      const monopolyFactor = ownsWholeGroup(state, owner.id, tile.color)
-        ? 2
-        : 1;
-      const level = getImprovementLevel(state, player.position);
-      const rent = money(tile.rent * level * monopolyFactor);
-
-      return chargeRent(state, player, owner, rent);
+      return landOnProperty(state, player, tile);
     }
     case "railroad": {
-      const ownerId = state.ownership.get(player.position);
-
-      if (ownerId === undefined) {
-        return {
-          state,
-          events: [
-            {
-              type: "LandedOnRailroad",
-              playerId: player.id,
-              position: player.position,
-            },
-          ],
-        };
-      }
-
-      if (ownerId === player.id) {
-        return {
-          state,
-          events: [],
-        };
-      }
-
-      const owner = inPlayPlayerById(state, ownerId);
-
-      const railroadAmount = getOwnedRailroad(state, owner.id).length;
-
-      const rent = money(RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1));
-
-      return chargeRent(state, player, owner, rent);
+      return landOnRailroad(state, player);
     }
     case "go-to-jail": {
-      const jailedPlayer = jailPlayer(player);
-      return {
-        state: replacePlayer(state, jailedPlayer),
-        events: [
-          {
-            type: "Moved",
-            playerId: player.id,
-            from: player.position,
-            to: JAIL_POSITION,
-          },
-          { type: "SentToJail", playerId: player.id },
-        ],
-      };
+      return sendToJail(state, player);
     }
     case "jail":
       return { state, events: [] };
     case "freeParking": {
-      const events: GameEvent[] = state.players.flatMap((p) =>
-        p.kind === "free" && p.position !== FREE_PARKING_POSITION
-          ? [
-              {
-                type: "Moved",
-                playerId: p.id,
-                from: p.position,
-                to: FREE_PARKING_POSITION,
-              },
-              { type: "DrawnToFreeParking", playerId: p.id },
-            ]
-          : [],
-      );
-
-      const players: Player[] = state.players.map((p) =>
-        p.kind === "free" && p.position !== FREE_PARKING_POSITION
-          ? { ...p, position: FREE_PARKING_POSITION }
-          : p,
-      );
-
-      return { events, state: { ...state, players } };
+      return drawToFreeParking(state);
     }
     case "tax": {
-      if (player.balance < tile.amount) {
-        return bankrupt(state, player);
-      }
-      const taxedPlayer = overrideInPlayPlayer(player, {
-        balance: money(player.balance - tile.amount),
+      return chargeBank(state, player, tile.amount, {
+        type: "TaxPaid",
+        playerId: player.id,
+        amount: tile.amount,
       });
-
-      return {
-        state: replacePlayer(state, taxedPlayer),
-        events: [{ type: "TaxPaid", playerId: player.id, amount: tile.amount }],
-      };
+    }
+    case "chance": {
+      return applyCard(state, player, deps.deck.draw());
     }
     default:
       return assertNever(tile);
+  }
+}
+
+function landOnProperty(
+  state: GameState,
+  player: FreePlayer,
+  tile: Extract<Tile, { kind: "property" }>,
+): EngineResult {
+  const ownerId = state.ownership.get(player.position);
+
+  if (ownerId === undefined) {
+    return {
+      state,
+      events: [
+        {
+          type: "LandedOnProperty",
+          playerId: player.id,
+          position: player.position,
+        },
+      ],
+    };
+  }
+
+  if (ownerId === player.id) {
+    return {
+      state,
+      events: [],
+    };
+  }
+
+  const owner = inPlayPlayerById(state, ownerId);
+
+  const monopolyFactor = ownsWholeGroup(state, owner.id, tile.color) ? 2 : 1;
+  const level = getImprovementLevel(state, player.position);
+  const rent = money(tile.rent * level * monopolyFactor);
+
+  return chargeRent(state, player, owner, rent);
+}
+
+function landOnRailroad(state: GameState, player: FreePlayer): EngineResult {
+  const ownerId = state.ownership.get(player.position);
+
+  if (ownerId === undefined) {
+    return {
+      state,
+      events: [
+        {
+          type: "LandedOnRailroad",
+          playerId: player.id,
+          position: player.position,
+        },
+      ],
+    };
+  }
+
+  if (ownerId === player.id) {
+    return {
+      state,
+      events: [],
+    };
+  }
+
+  const owner = inPlayPlayerById(state, ownerId);
+
+  const railroadAmount = getOwnedRailroad(state, owner.id).length;
+
+  const rent = money(RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1));
+
+  return chargeRent(state, player, owner, rent);
+}
+
+function sendToJail(state: GameState, player: FreePlayer): EngineResult {
+  const jailedPlayer = jailPlayer(player);
+  return {
+    state: replacePlayer(state, jailedPlayer),
+    events: [
+      {
+        type: "Moved",
+        playerId: player.id,
+        from: player.position,
+        to: JAIL_POSITION,
+      },
+      { type: "SentToJail", playerId: player.id },
+    ],
+  };
+}
+
+function drawToFreeParking(state: GameState): EngineResult {
+  const events: GameEvent[] = state.players.flatMap((p) =>
+    p.kind === "free" && p.position !== FREE_PARKING_POSITION
+      ? [
+          {
+            type: "Moved",
+            playerId: p.id,
+            from: p.position,
+            to: FREE_PARKING_POSITION,
+          },
+          { type: "DrawnToFreeParking", playerId: p.id },
+        ]
+      : [],
+  );
+
+  const players: Player[] = state.players.map((p) =>
+    p.kind === "free" && p.position !== FREE_PARKING_POSITION
+      ? { ...p, position: FREE_PARKING_POSITION }
+      : p,
+  );
+
+  return { events, state: { ...state, players } };
+}
+
+function applyCard(
+  state: GameState,
+  player: FreePlayer,
+  card: Card,
+): EngineResult {
+  const events: GameEvent[] = [];
+
+  events.push({ type: "CardDrawn", playerId: player.id, cardId: card.id });
+
+  switch (card.kind) {
+    case "credit": {
+      const creditPlayer = overrideFreePlayer(player, {
+        balance: money(player.balance + card.amount),
+      });
+
+      events.push({
+        type: "ReceivedFromBank",
+        playerId: player.id,
+        amount: card.amount,
+      });
+
+      return {
+        state: replacePlayer(state, creditPlayer),
+        events,
+      };
+    }
+    case "debit": {
+      const result = chargeBank(state, player, card.amount, {
+        type: "PaidToBank",
+        playerId: player.id,
+        amount: card.amount,
+      });
+
+      events.push(...result.events);
+
+      return {
+        state: result.state,
+        events,
+      };
+    }
+    case "repair": {
+      const ownedProperties = getOwnedProperties(state, player.id);
+      const sumImprovements = improvementsSumOwnedBy(state, player.id);
+
+      const amount = money(
+        ownedProperties.length * card.perProperty +
+          sumImprovements * card.perImprovement,
+      );
+
+      const result = chargeBank(state, player, amount, {
+        type: "PaidToBank",
+        playerId: player.id,
+        amount,
+      });
+
+      events.push(...result.events);
+
+      return {
+        state: result.state,
+        events,
+      };
+    }
+    default:
+      return assertNever(card);
   }
 }
 
@@ -530,6 +622,19 @@ function transfer(
   });
 
   return replacePlayer(replacePlayer(state, newFrom), newTo);
+}
+
+function chargeBank(
+  state: GameState,
+  player: FreePlayer,
+  amount: Money,
+  paid: GameEvent,
+): EngineResult {
+  if (player.balance < amount) return bankrupt(state, player);
+  const charged = overrideFreePlayer(player, {
+    balance: money(player.balance - amount),
+  });
+  return { state: replacePlayer(state, charged), events: [paid] };
 }
 
 function chargeRent(
@@ -575,6 +680,21 @@ function getOwnedRailroad(
   return railroadPositions().filter(
     (pos) => state.ownership.get(pos) === owner,
   );
+}
+
+function getOwnedProperties(
+  state: GameState,
+  owner: PlayerId,
+): readonly BoardPosition[] {
+  return propertyPositions().filter(
+    (pos) => state.ownership.get(pos) === owner,
+  );
+}
+
+function improvementsSumOwnedBy(state: GameState, owner: PlayerId): number {
+  return [...state.improvements]
+    .filter((imp) => state.ownership.get(imp[0]) === owner)
+    .reduce((sum, imp) => sum + (imp[1] - 1), 0);
 }
 
 function assertNever(value: never): never {

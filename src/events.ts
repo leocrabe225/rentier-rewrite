@@ -2,6 +2,7 @@ import type { ImprovementLevel } from "./domain/improvementLevel";
 import type { Money } from "./domain/money";
 import type { BoardPosition } from "./domain/position";
 import type { PlayerId } from "./domain/playerId";
+import type { CardId } from "./domain/cardId";
 
 export type GameEvent =
   | {
@@ -52,4 +53,19 @@ export type GameEvent =
       readonly type: "LandedOnRailroad";
       readonly playerId: PlayerId;
       readonly position: BoardPosition;
+    }
+  | {
+      readonly type: "CardDrawn";
+      readonly playerId: PlayerId;
+      readonly cardId: CardId;
+    }
+  | {
+      readonly type: "ReceivedFromBank";
+      readonly playerId: PlayerId;
+      readonly amount: Money;
+    }
+  | {
+      readonly type: "PaidToBank";
+      readonly playerId: PlayerId;
+      readonly amount: Money;
     };

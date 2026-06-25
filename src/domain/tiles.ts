@@ -36,4 +36,5 @@ export type Tile =
   | {
       readonly kind: "railroad";
       readonly price: Money;
-    };
+    }
+  | { readonly kind: "chance" };

@@ -64,4 +64,15 @@ describe("board", () => {
 
     expect(count).toBe(4);
   });
+
+  it("has four chance", () => {
+    let count = 0;
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      if (tileAt(boardPosition(i)).kind === "chance") {
+        count += 1;
+      }
+    }
+
+    expect(count).toBe(4);
+  });
 });
