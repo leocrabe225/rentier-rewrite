@@ -69,4 +69,6 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly amount: Money;
     }
-  | { readonly type: "PurchaseDeclined"; readonly playerId: PlayerId };
+  | { readonly type: "PurchaseDeclined"; readonly playerId: PlayerId }
+  | { readonly type: "TurnBegan"; readonly playerId: PlayerId }
+  | { readonly type: "PlayerWon"; readonly playerId: PlayerId };

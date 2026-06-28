@@ -37,6 +37,8 @@ export interface TurnPurchase {
 
 export type Turn = TurnRoll | TurnPurchase;
 
+export type TurnOutcome = "waits-command" | "ends";
+
 export interface GameState {
   readonly players: ReadonlyArray<Player>;
   readonly currentPlayerId: PlayerId;

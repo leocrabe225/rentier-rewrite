@@ -11,6 +11,7 @@ import {
   type BankruptPlayer,
   type InPlayFields,
   inPlayPlayerById,
+  type TurnOutcome,
 } from "./domain/state";
 import { type PlayerId } from "./domain/playerId";
 import {
@@ -54,6 +55,8 @@ export interface EngineResult {
   readonly state: GameState;
   readonly events: ReadonlyArray<GameEvent>;
 }
+
+type LandingResult = EngineResult & { readonly outcome: TurnOutcome };
 
 export type RejectionReason =
   | "NotBuyable"
@@ -142,9 +145,8 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
     balance: money(player.balance - tile.price),
   });
 
-  return {
-    status: "accepted",
-    state: {
+  return finishTurn(
+    {
       ...withOwnership(
         replacePlayer(state, paidPlayer),
         paidPlayer.position,
@@ -152,14 +154,15 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
       ),
       turn: { kind: "roll" },
     },
-    events: [
+    [
       {
         type: "PropertyBought",
         playerId: paidPlayer.id,
         position: paidPlayer.position,
       },
     ],
-  };
+    "ends",
+  );
 }
 
 function improveProperty(
@@ -264,11 +267,7 @@ function move(
   const landing = applyLanding(moved, movedPlayer, deps);
   events.push(...landing.events);
 
-  return {
-    status: "accepted",
-    state: landing.state,
-    events,
-  };
+  return finishTurn(landing.state, events, landing.outcome);
 }
 
 function declinePurchase(state: GameState, player: InPlayPlayer): Reduction {
@@ -276,14 +275,14 @@ function declinePurchase(state: GameState, player: InPlayPlayer): Reduction {
     return { status: "rejected", reason: "NoPendingPurchase" };
   }
 
-  return {
-    status: "accepted",
-    state: {
+  return finishTurn(
+    {
       ...state,
       turn: { kind: "roll" },
     },
-    events: [{ type: "PurchaseDeclined", playerId: player.id }],
-  };
+    [{ type: "PurchaseDeclined", playerId: player.id }],
+    "ends",
+  );
 }
 
 function rollForJail(
@@ -315,18 +314,19 @@ function rollForJail(
     const newPlayer = overrideJailedPlayer(player, {
       failedAttempts: failedAttempts,
     });
-    return {
-      state: replacePlayer(state, newPlayer),
-      events: [{ type: "RemainedInJail", playerId: player.id }],
-      status: "accepted",
-    };
+
+    return finishTurn(
+      replacePlayer(state, newPlayer),
+      [{ type: "RemainedInJail", playerId: player.id }],
+      "ends",
+    );
   }
 
-  return {
-    state: replacePlayer(state, freeJailedPlayer(player)),
-    events: [{ type: "FreedFromJail", playerId: player.id }],
-    status: "accepted",
-  };
+  return finishTurn(
+    replacePlayer(state, freeJailedPlayer(player)),
+    [{ type: "FreedFromJail", playerId: player.id }],
+    "ends",
+  );
 }
 
 function replacePlayer(state: GameState, player: Player): GameState {
@@ -336,6 +336,42 @@ function replacePlayer(state: GameState, player: Player): GameState {
     ...state,
     players,
   };
+}
+
+function finishTurn(
+  state: GameState,
+  events: GameEvent[],
+  outcome: TurnOutcome,
+): Accepted {
+  if (state.players.filter((p) => p.kind !== "bankrupt").length === 1) {
+    const win = nextPlayerId(state);
+    events.push({ type: "PlayerWon", playerId: win });
+    return {
+      status: "accepted",
+      state: { ...state, currentPlayerId: win },
+      events,
+    };
+  }
+
+  switch (outcome) {
+    case "waits-command":
+      return {
+        status: "accepted",
+        state,
+        events,
+      };
+    case "ends": {
+      const next = nextPlayerId(state);
+      events.push({ type: "TurnBegan", playerId: next });
+      return {
+        status: "accepted",
+        state: { ...state, currentPlayerId: next },
+        events,
+      };
+    }
+    default:
+      return assertNever(outcome);
+  }
 }
 
 function overrideJailedPlayer(
@@ -426,12 +462,12 @@ function applyLanding(
   state: GameState,
   player: FreePlayer,
   deps: EngineDeps,
-): EngineResult {
+): LandingResult {
   const tile = tileAt(player.position);
 
   switch (tile.kind) {
     case "go":
-      return { state, events: [] };
+      return { state, events: [], outcome: "ends" };
     case "property": {
       return landOnProperty(state, player, tile);
     }
@@ -442,16 +478,19 @@ function applyLanding(
       return sendToJail(state, player);
     }
     case "jail":
-      return { state, events: [] };
+      return { state, events: [], outcome: "ends" };
     case "freeParking": {
       return drawToFreeParking(state);
     }
     case "tax": {
-      return chargeBank(state, player, tile.amount, {
-        type: "TaxPaid",
-        playerId: player.id,
-        amount: tile.amount,
-      });
+      return {
+        ...chargeBank(state, player, tile.amount, {
+          type: "TaxPaid",
+          playerId: player.id,
+          amount: tile.amount,
+        }),
+        outcome: "ends",
+      };
     }
     case "chance": {
       return applyCard(state, player, deps.deck.draw());
@@ -465,7 +504,7 @@ function landOnProperty(
   state: GameState,
   player: FreePlayer,
   tile: Extract<Tile, { kind: "property" }>,
-): EngineResult {
+): LandingResult {
   const ownerId = state.ownership.get(player.position);
 
   if (ownerId === undefined) {
@@ -478,6 +517,7 @@ function landOnProperty(
           position: player.position,
         },
       ],
+      outcome: "waits-command",
     };
   }
 
@@ -485,6 +525,7 @@ function landOnProperty(
     return {
       state,
       events: [],
+      outcome: "ends",
     };
   }
 
@@ -494,10 +535,10 @@ function landOnProperty(
   const level = getImprovementLevel(state, player.position);
   const rent = money(tile.rent * level * monopolyFactor);
 
-  return chargeRent(state, player, owner, rent);
+  return { ...chargeRent(state, player, owner, rent), outcome: "ends" };
 }
 
-function landOnRailroad(state: GameState, player: FreePlayer): EngineResult {
+function landOnRailroad(state: GameState, player: FreePlayer): LandingResult {
   const ownerId = state.ownership.get(player.position);
 
   if (ownerId === undefined) {
@@ -510,6 +551,7 @@ function landOnRailroad(state: GameState, player: FreePlayer): EngineResult {
           position: player.position,
         },
       ],
+      outcome: "waits-command",
     };
   }
 
@@ -517,6 +559,7 @@ function landOnRailroad(state: GameState, player: FreePlayer): EngineResult {
     return {
       state,
       events: [],
+      outcome: "ends",
     };
   }
 
@@ -526,10 +569,10 @@ function landOnRailroad(state: GameState, player: FreePlayer): EngineResult {
 
   const rent = money(RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1));
 
-  return chargeRent(state, player, owner, rent);
+  return { ...chargeRent(state, player, owner, rent), outcome: "ends" };
 }
 
-function sendToJail(state: GameState, player: FreePlayer): EngineResult {
+function sendToJail(state: GameState, player: FreePlayer): LandingResult {
   const jailedPlayer = jailPlayer(player);
   return {
     state: replacePlayer(state, jailedPlayer),
@@ -542,10 +585,11 @@ function sendToJail(state: GameState, player: FreePlayer): EngineResult {
       },
       { type: "SentToJail", playerId: player.id },
     ],
+    outcome: "ends",
   };
 }
 
-function drawToFreeParking(state: GameState): EngineResult {
+function drawToFreeParking(state: GameState): LandingResult {
   const events: GameEvent[] = state.players.flatMap((p) =>
     p.kind === "free" && p.position !== FREE_PARKING_POSITION
       ? [
@@ -566,14 +610,14 @@ function drawToFreeParking(state: GameState): EngineResult {
       : p,
   );
 
-  return { events, state: { ...state, players } };
+  return { events, state: { ...state, players }, outcome: "ends" };
 }
 
 function applyCard(
   state: GameState,
   player: FreePlayer,
   card: Card,
-): EngineResult {
+): LandingResult {
   const events: GameEvent[] = [];
 
   events.push({ type: "CardDrawn", playerId: player.id, cardId: card.id });
@@ -593,6 +637,7 @@ function applyCard(
       return {
         state: replacePlayer(state, creditPlayer),
         events,
+        outcome: "ends",
       };
     }
     case "debit": {
@@ -607,6 +652,7 @@ function applyCard(
       return {
         state: result.state,
         events,
+        outcome: "ends",
       };
     }
     case "repair": {
@@ -629,11 +675,24 @@ function applyCard(
       return {
         state: result.state,
         events,
+        outcome: "ends",
       };
     }
     default:
       return assertNever(card);
   }
+}
+
+function nextPlayerId(state: GameState): PlayerId {
+  const count = state.players.length;
+  const start = state.players.findIndex((p) => p.id === state.currentPlayerId);
+
+  for (let step = 1; step <= count; step++) {
+    const candidate = state.players[(start + step) % count];
+    if (candidate && candidate.kind !== "bankrupt") return candidate.id;
+  }
+
+  throw new Error("no in-play player to advance to");
 }
 
 function bankrupt(state: GameState, player: FreePlayer): EngineResult {
