@@ -9,4 +9,5 @@ export type Command =
       readonly position: BoardPosition;
       readonly toLevel: ImprovementLevel;
     }
-  | { readonly type: "PayJailFine" };
+  | { readonly type: "PayJailFine" }
+  | { readonly type: "DeclinePurchase" };

@@ -63,7 +63,9 @@ export type RejectionReason =
   | "NotOwner"
   | "NotAnUpgrade"
   | "NotInJail"
-  | "Bankrupt";
+  | "Bankrupt"
+  | "NoPendingPurchase"
+  | "NoPendingRoll";
 
 export interface Accepted extends EngineResult {
   readonly status: "accepted";
@@ -94,6 +96,8 @@ export function reduce(
       return improveProperty(state, player, command);
     case "PayJailFine":
       return payJailFine(state, player);
+    case "DeclinePurchase":
+      return declinePurchase(state, player);
     default:
       return assertNever(command);
   }
@@ -103,7 +107,11 @@ function rollDice(
   state: GameState,
   player: InPlayPlayer,
   deps: EngineDeps,
-): Accepted {
+): Reduction {
+  if (state.turn.kind !== "roll") {
+    return { status: "rejected", reason: "NoPendingRoll" };
+  }
+
   if (player.kind === "jailed") {
     return rollForJail(state, player, deps);
   }
@@ -122,6 +130,10 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
     return { status: "rejected", reason: "AlreadyOwned" };
   }
 
+  if (state.turn.kind !== "purchase") {
+    return { status: "rejected", reason: "NoPendingPurchase" };
+  }
+
   if (player.balance < tile.price) {
     return { status: "rejected", reason: "InsufficientFunds" };
   }
@@ -132,11 +144,14 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
 
   return {
     status: "accepted",
-    state: withOwnership(
-      replacePlayer(state, paidPlayer),
-      paidPlayer.position,
-      paidPlayer.id,
-    ),
+    state: {
+      ...withOwnership(
+        replacePlayer(state, paidPlayer),
+        paidPlayer.position,
+        paidPlayer.id,
+      ),
+      turn: { kind: "roll" },
+    },
     events: [
       {
         type: "PropertyBought",
@@ -165,6 +180,10 @@ function improveProperty(
   const currentLevel = getImprovementLevel(state, command.position);
   if (command.toLevel <= currentLevel) {
     return { status: "rejected", reason: "NotAnUpgrade" };
+  }
+
+  if (state.turn.kind !== "roll") {
+    return { status: "rejected", reason: "NoPendingRoll" };
   }
 
   const cost = money(tile.costPerLevel * (command.toLevel - currentLevel));
@@ -198,6 +217,11 @@ function payJailFine(state: GameState, player: InPlayPlayer): Reduction {
   if (player.kind === "free") {
     return { status: "rejected", reason: "NotInJail" };
   }
+
+  if (state.turn.kind !== "roll") {
+    return { status: "rejected", reason: "NoPendingRoll" };
+  }
+
   if (player.balance < JAIL_FINE) {
     return { status: "rejected", reason: "InsufficientFunds" };
   }
@@ -244,6 +268,21 @@ function move(
     status: "accepted",
     state: landing.state,
     events,
+  };
+}
+
+function declinePurchase(state: GameState, player: InPlayPlayer): Reduction {
+  if (state.turn.kind !== "purchase") {
+    return { status: "rejected", reason: "NoPendingPurchase" };
+  }
+
+  return {
+    status: "accepted",
+    state: {
+      ...state,
+      turn: { kind: "roll" },
+    },
+    events: [{ type: "PurchaseDeclined", playerId: player.id }],
   };
 }
 
@@ -431,7 +470,7 @@ function landOnProperty(
 
   if (ownerId === undefined) {
     return {
-      state,
+      state: { ...state, turn: { kind: "purchase" } },
       events: [
         {
           type: "LandedOnProperty",
@@ -463,7 +502,7 @@ function landOnRailroad(state: GameState, player: FreePlayer): EngineResult {
 
   if (ownerId === undefined) {
     return {
-      state,
+      state: { ...state, turn: { kind: "purchase" } },
       events: [
         {
           type: "LandedOnRailroad",

@@ -27,11 +27,22 @@ export interface BankruptPlayer extends PlayerCore {
 export type InPlayPlayer = FreePlayer | JailedPlayer;
 export type Player = InPlayPlayer | BankruptPlayer;
 
+export interface TurnRoll {
+  readonly kind: "roll";
+}
+
+export interface TurnPurchase {
+  readonly kind: "purchase";
+}
+
+export type Turn = TurnRoll | TurnPurchase;
+
 export interface GameState {
   readonly players: ReadonlyArray<Player>;
   readonly currentPlayerId: PlayerId;
   readonly ownership: ReadonlyMap<BoardPosition, PlayerId>;
   readonly improvements: ReadonlyMap<BoardPosition, ImprovementLevel>;
+  readonly turn: Turn;
 }
 
 export function currentPlayer(state: GameState): Player {

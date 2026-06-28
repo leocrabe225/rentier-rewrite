@@ -21,6 +21,8 @@ import {
   type InPlayPlayer,
   type JailedPlayer,
   type Player,
+  type TurnPurchase,
+  type TurnRoll,
 } from "./domain/state";
 import { FREE_PARKING_POSITION, JAIL_POSITION, tileAt } from "./domain/board";
 import { improvementLevel } from "./domain/improvementLevel";
@@ -59,6 +61,20 @@ const noDeck: Deck = {
 
 describe("RollDice", () => {
   describe("Movement", () => {
+    it("rejects RollDice when the turn kind not roll", () => {
+      const state = makeState({
+        players: [freePlayer({ position: boardPosition(1) })],
+        turn: turnPurchase(),
+      });
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({}));
+
+      expect(result).toEqual({
+        status: "rejected",
+        reason: "NoPendingRoll",
+      });
+    });
+
     it("emits Moved with the new position when the player does not pass GO", () => {
       // Arrange
       const state = makeState();
@@ -396,6 +412,23 @@ describe("RollDice", () => {
       expect(p1.balance).toBe(1000 - rent);
       expect(p2.balance).toBe(2000 + rent);
     });
+
+    it("sets Turn kind to purchase when the player lands on an unowned property", () => {
+      const player1 = freePlayer({});
+      const state = makeState({ players: [player1] });
+
+      const dice: Dice = { roll: () => [2, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        players: [{ ...player1, position: boardPosition(5) }],
+        turn: turnPurchase(),
+      });
+    });
   });
 
   describe("Railroads", () => {
@@ -547,6 +580,22 @@ describe("RollDice", () => {
 
       const p1 = playerById(result.state, P1);
       expect(p1).toEqual({ id: P1, kind: "bankrupt" });
+    });
+    it("sets Turn kind to purchase when the player lands on an unowned railroad", () => {
+      const player1 = freePlayer({});
+      const state = makeState({ players: [player1], turn: turnRoll() });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        players: [{ ...player1, position: boardPosition(4) }],
+        turn: turnPurchase(),
+      });
     });
   });
 
@@ -1567,10 +1616,41 @@ describe("BuyProperty", () => {
     expect(result).toEqual({ status: "rejected", reason: "NotBuyable" });
   });
 
+  it("rejects BuyProperty when the turn kind is not purchase", () => {
+    const state = makeState({
+      players: [freePlayer({ position: boardPosition(1) })],
+    });
+
+    const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
+
+    expect(result).toEqual({ status: "rejected", reason: "NoPendingPurchase" });
+  });
+
+  it("returns the turn to roll after buying", () => {
+    const tile = propertyTileAt(boardPosition(1));
+    const player1 = freePlayer({ position: boardPosition(1) });
+    const state = makeState({
+      players: [player1],
+      turn: turnPurchase(),
+    });
+
+    const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
+
+    assertAccepted(result);
+
+    expect(result.state).toEqual({
+      ...state,
+      players: [{ ...player1, balance: player1.balance - tile.price }],
+      ownership: new Map([[boardPosition(1), P1]]),
+      turn: turnRoll(),
+    });
+  });
+
   describe("Properties", () => {
     it("buys the unowned property the player is standing on", () => {
       const state = makeState({
         players: [freePlayer({ position: boardPosition(1) })],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1588,6 +1668,7 @@ describe("BuyProperty", () => {
 
       const state = makeState({
         players: [freePlayer({ position: boardPosition(1) })],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1608,6 +1689,7 @@ describe("BuyProperty", () => {
             balance: money(tile.price - 1),
           }),
         ],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1638,6 +1720,7 @@ describe("BuyProperty", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
         players: [freePlayer({ position: boardPosition(4) })],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1653,6 +1736,7 @@ describe("BuyProperty", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
         players: [freePlayer({ position: boardPosition(4) })],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1666,6 +1750,7 @@ describe("BuyProperty", () => {
       const railroad = railroadTileAt(boardPosition(4));
       const state = makeState({
         players: [freePlayer({ position: boardPosition(4) })],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1700,6 +1785,7 @@ describe("BuyProperty", () => {
             balance: money(railroad.price - 1),
           }),
         ],
+        turn: turnPurchase(),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1713,6 +1799,28 @@ describe("BuyProperty", () => {
 });
 
 describe("ImproveProperty", () => {
+  it("rejects ImproveProperty when the turn kind not roll", () => {
+    const state = makeState({
+      ownership: new Map([[boardPosition(5), P1]]),
+      turn: turnPurchase(),
+    });
+
+    const result = reduce(
+      state,
+      {
+        type: "ImproveProperty",
+        position: boardPosition(5),
+        toLevel: improvementLevel(4),
+      },
+      makeDeps({}),
+    );
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "NoPendingRoll",
+    });
+  });
+
   it("raises an owned property to the requested level", () => {
     const state = makeState({
       ownership: new Map([[boardPosition(5), P1]]),
@@ -1882,6 +1990,27 @@ describe("ImproveProperty", () => {
 });
 
 describe("PayJailFine", () => {
+  it("rejects PayJailFine when the turn kind not roll", () => {
+    const state = makeState({
+      players: [
+        jailedPlayer({
+          kind: "jailed",
+          failedAttempts: 0,
+          position: JAIL_POSITION,
+          balance: money(1000),
+        }),
+      ],
+      turn: turnPurchase(),
+    });
+
+    const result = reduce(state, { type: "PayJailFine" }, makeDeps({}));
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "NoPendingRoll",
+    });
+  });
+
   it("frees a jailed player who pays the fine, charging 500", () => {
     const state = makeState({
       players: [
@@ -1945,6 +2074,45 @@ describe("PayJailFine", () => {
   });
 });
 
+describe("DeclinePurchase", () => {
+  it("returns the turn to roll", () => {
+    const state = makeState({ turn: turnPurchase() });
+
+    const result = reduce(state, { type: "DeclinePurchase" }, makeDeps({}));
+
+    assertAccepted(result);
+
+    expect(result.state).toEqual({
+      ...state,
+      turn: turnRoll(),
+    });
+  });
+
+  it("emits PurchasedDeclined", () => {
+    const player1 = freePlayer();
+    const state = makeState({ players: [player1], turn: turnPurchase() });
+
+    const result = reduce(state, { type: "DeclinePurchase" }, makeDeps({}));
+
+    assertAccepted(result);
+
+    expect(result.events).toEqual([
+      { type: "PurchaseDeclined", playerId: player1.id },
+    ]);
+  });
+
+  it("rejects when the turn kind is not purchase", () => {
+    const state = makeState({});
+
+    const result = reduce(state, { type: "DeclinePurchase" }, makeDeps({}));
+
+    expect(result).toEqual({
+      status: "rejected",
+      reason: "NoPendingPurchase",
+    });
+  });
+});
+
 function freePlayer(overrides: Partial<FreePlayer> = {}): FreePlayer {
   return {
     id: P1,
@@ -1983,12 +2151,25 @@ function inPlay(player: Player): InPlayPlayer {
   return player;
 }
 
+function turnRoll(): TurnRoll {
+  return {
+    kind: "roll",
+  };
+}
+
+function turnPurchase(): TurnPurchase {
+  return {
+    kind: "purchase",
+  };
+}
+
 function makeState(overrides: Partial<GameState> = {}): GameState {
   return {
     players: [freePlayer({})],
     currentPlayerId: P1,
     ownership: new Map(),
     improvements: new Map(),
+    turn: turnRoll(),
     ...overrides,
   };
 }
