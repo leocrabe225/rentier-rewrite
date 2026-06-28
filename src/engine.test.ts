@@ -140,10 +140,10 @@ describe("RollDice", () => {
     it("emits PassedGo when player lands on GO", () => {
       // Arrange
       const state = makeState({
-        players: [freePlayer({ position: boardPosition(BOARD_SIZE - 2) })],
+        players: [freePlayer({ position: boardPosition(BOARD_SIZE - 4) })],
       });
 
-      const dice: Dice = { roll: () => [1, 1] };
+      const dice: Dice = { roll: () => [1, 3] };
 
       // Act
       const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
@@ -154,7 +154,7 @@ describe("RollDice", () => {
         {
           type: "Moved",
           playerId: P1,
-          from: boardPosition(BOARD_SIZE - 2),
+          from: boardPosition(BOARD_SIZE - 4),
           to: boardPosition(0),
         },
         { type: "PassedGo", playerId: P1 },
@@ -168,7 +168,7 @@ describe("RollDice", () => {
       // Arrange
       const state = makeState({});
 
-      const dice: Dice = { roll: () => [1, 1] };
+      const dice: Dice = { roll: () => [1, 4] };
 
       // Act
       const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
@@ -180,12 +180,12 @@ describe("RollDice", () => {
           type: "Moved",
           playerId: P1,
           from: boardPosition(0),
-          to: boardPosition(2),
+          to: boardPosition(5),
         },
         {
           type: "LandedOnProperty",
           playerId: P1,
-          position: boardPosition(2),
+          position: boardPosition(5),
         },
       ]);
     });
@@ -274,7 +274,7 @@ describe("RollDice", () => {
     });
 
     it("doubles rent when the owner holds the whole color group", () => {
-      const tile = propertyTileAt(boardPosition(2));
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
@@ -282,12 +282,13 @@ describe("RollDice", () => {
           freePlayer({ id: P2, balance: money(2000) }),
         ],
         ownership: new Map([
-          [boardPosition(1), P2],
-          [boardPosition(2), P2],
+          [boardPosition(5), P2],
+          [boardPosition(7), P2],
+          [boardPosition(8), P2],
         ]),
       });
 
-      const dice: Dice = { roll: () => [1, 1] };
+      const dice: Dice = { roll: () => [1, 4] };
       const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
@@ -298,7 +299,7 @@ describe("RollDice", () => {
           type: "Moved",
           playerId: P1,
           from: boardPosition(0),
-          to: boardPosition(2),
+          to: boardPosition(5),
         },
         { type: "RentPaid", from: P1, to: P2, amount: doubled },
       ]);
@@ -310,17 +311,17 @@ describe("RollDice", () => {
     });
 
     it("charges single rent when the owner holds only part of the color group", () => {
-      const tile = propertyTileAt(boardPosition(2));
+      const tile = propertyTileAt(boardPosition(5));
 
       const state = makeState({
         players: [
           freePlayer({ id: P1, balance: money(1000) }),
           freePlayer({ id: P2, balance: money(2000) }),
         ],
-        ownership: new Map([[boardPosition(2), P2]]),
+        ownership: new Map([[boardPosition(5), P2]]),
       });
 
-      const dice: Dice = { roll: () => [1, 1] };
+      const dice: Dice = { roll: () => [1, 4] };
       const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
       assertAccepted(result);
@@ -330,7 +331,7 @@ describe("RollDice", () => {
           type: "Moved",
           playerId: P1,
           from: boardPosition(0),
-          to: boardPosition(2),
+          to: boardPosition(5),
         },
         { type: "RentPaid", from: P1, to: P2, amount: tile.rent },
       ]);
