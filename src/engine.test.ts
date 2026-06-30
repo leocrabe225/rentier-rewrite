@@ -4,6 +4,7 @@ import {
   type Accepted,
   type Deck,
   type Dice,
+  type DiceRoll,
   type EngineDeps,
   type Reduction,
 } from "./engine";
@@ -53,6 +54,24 @@ const noDice: Dice = {
   },
 };
 
+class TwiceDice implements Dice {
+  private consumedRoll1: boolean = false;
+
+  constructor(
+    private roll1: DiceRoll,
+    private roll2: DiceRoll,
+  ) {}
+
+  roll() {
+    if (!this.consumedRoll1) {
+      this.consumedRoll1 = true;
+      return this.roll1;
+    } else {
+      return this.roll2;
+    }
+  }
+}
+
 const noDeck: Deck = {
   draw: () => {
     throw new Error("This test must not draw");
@@ -64,7 +83,7 @@ describe("RollDice", () => {
     it("rejects RollDice when the turn kind not roll", () => {
       const state = makeState({
         players: [freePlayer({ position: boardPosition(1) })],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "RollDice" }, makeDeps({}));
@@ -440,7 +459,7 @@ describe("RollDice", () => {
       expect(result.state).toEqual({
         ...state,
         players: [{ ...player1, position: boardPosition(5) }],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
     });
   });
@@ -612,7 +631,7 @@ describe("RollDice", () => {
       expect(result.state).toEqual({
         ...state,
         players: [{ ...player1, position: boardPosition(4) }],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
     });
   });
@@ -718,7 +737,7 @@ describe("RollDice", () => {
       });
     });
 
-    it("frees a jailed player when the roll is doubles", () => {
+    it("frees a jailed player, and rolls a second time when the roll is doubles", () => {
       const state = makeState({
         players: [
           jailedPlayer({
@@ -728,9 +747,10 @@ describe("RollDice", () => {
           }),
           freePlayer({ id: P2 }),
         ],
+        ownership: new Map([[boardPosition(12), P1]]),
       });
 
-      const dice: Dice = { roll: () => [5, 5] };
+      const dice: Dice = new TwiceDice([5, 5], [1, 2]);
 
       const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
 
@@ -745,25 +765,24 @@ describe("RollDice", () => {
           type: "Moved",
           playerId: P1,
           from: boardPosition(9),
-          to: boardPosition(19),
+          to: boardPosition(12),
         },
         {
-          type: "LandedOnProperty",
-          playerId: P1,
-          position: boardPosition(19),
+          playerId: P2,
+          type: "TurnBegan",
         },
       ]);
 
-      const p1 = currentPlayer(result.state);
+      const p1 = playerById(result.state, P1);
       expect(p1).toEqual({
         id: P1,
-        position: boardPosition(19),
+        position: boardPosition(12),
         balance: STARTING_BALANCE,
         kind: "free",
       });
     });
 
-    it("frees a jailed player after its third failed roll", () => {
+    it("advances & frees a jailed player after its third failed roll", () => {
       const state = makeState({
         players: [
           jailedPlayer({
@@ -1787,6 +1806,198 @@ describe("RollDice", () => {
       });
     });
   });
+
+  describe("Doubles", () => {
+    it("does not emit TurnBegan after a double on jail", () => {
+      const state = makeState({
+        players: [
+          freePlayer({ position: boardPosition(1) }),
+          freePlayer({ id: P2 }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(1),
+          to: boardPosition(9),
+        },
+      ]);
+    });
+
+    it("carries doubled: true after a double roll on unowned property ", () => {
+      const player1 = freePlayer();
+      const player2 = freePlayer({ id: P2 });
+      const state = makeState({ players: [player1, player2] });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        players: [{ ...player1, position: boardPosition(8) }, player2],
+        turn: { kind: "purchase", doubled: true },
+      });
+    });
+
+    it("does not emit TurnBegan when buying with doubled:true", () => {
+      const tile = propertyTileAt(boardPosition(8));
+      const player1 = freePlayer({ position: boardPosition(8) });
+      const player2 = freePlayer({ id: P2 });
+      const turn = turnPurchase({ doubled: true });
+      const state = makeState({
+        players: [player1, player2],
+        turn,
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "BuyProperty" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        ownership: new Map([[8, P1]]),
+        players: [
+          {
+            ...player1,
+            balance: player1.balance - tile.price,
+          },
+          player2,
+        ],
+        turn: { doubled: false, kind: "roll" },
+      });
+    });
+
+    it("does not emit TurnBegan when declining with doubled:true", () => {
+      const player1 = freePlayer({ position: boardPosition(8) });
+      const player2 = freePlayer({ id: P2 });
+      const turn = turnPurchase({ doubled: true });
+      const state = makeState({
+        players: [player1, player2],
+        turn,
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(
+        state,
+        { type: "DeclinePurchase" },
+        makeDeps({ dice }),
+      );
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        turn: { doubled: false, kind: "roll" },
+      });
+    });
+
+    it("emits PlayerWon, not a reroll, when a doubles roll bankrupts the last opponent", () => {
+      const tile = propertyTileAt(boardPosition(8));
+
+      const state = makeState({
+        players: [
+          freePlayer({ id: P1, balance: money(tile.rent - 1) }),
+          freePlayer({ id: P2 }),
+        ],
+        ownership: new Map([[boardPosition(8), P2]]),
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: boardPosition(8),
+        },
+        {
+          type: "WentBankrupt",
+          playerId: P1,
+        },
+        { type: "PlayerWon", playerId: P2 },
+      ]);
+    });
+
+    it("lets a freed player reroll when their move roll is doubles", () => {
+      const state = makeState({
+        players: [
+          jailedPlayer({ position: JAIL_POSITION }),
+          freePlayer({ id: P2 }),
+        ],
+        ownership: new Map([[boardPosition(19), P1]]),
+      });
+
+      const dice: Dice = { roll: () => [5, 5] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "FreedFromJail",
+          playerId: P1,
+        },
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(9),
+          to: boardPosition(19),
+        },
+      ]);
+    });
+
+    it("emits TurnBegan after a double on go-to-jail", () => {
+      const state = makeState({
+        players: [
+          freePlayer({ position: boardPosition(19) }),
+          freePlayer({ id: P2 }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(19),
+          to: boardPosition(27),
+        },
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(27),
+          to: boardPosition(JAIL_POSITION),
+        },
+        { type: "SentToJail", playerId: P1 },
+        { type: "TurnBegan", playerId: P2 },
+      ]);
+    });
+  });
 });
 
 describe("BuyProperty", () => {
@@ -1808,12 +2019,13 @@ describe("BuyProperty", () => {
     expect(result).toEqual({ status: "rejected", reason: "NoPendingPurchase" });
   });
 
-  it("returns the turn to roll after buying", () => {
+  it("advances player and returns the turn to roll after buying without doubled:true", () => {
     const tile = propertyTileAt(boardPosition(1));
     const player1 = freePlayer({ position: boardPosition(1) });
+    const player2 = freePlayer({ id: P2 });
     const state = makeState({
-      players: [player1],
-      turn: turnPurchase(),
+      players: [player1, player2],
+      turn: turnPurchase({}),
     });
 
     const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1822,7 +2034,8 @@ describe("BuyProperty", () => {
 
     expect(result.state).toEqual({
       ...state,
-      players: [{ ...player1, balance: player1.balance - tile.price }],
+      currentPlayerId: P2,
+      players: [{ ...player1, balance: player1.balance - tile.price }, player2],
       ownership: new Map([[boardPosition(1), P1]]),
       turn: turnRoll(),
     });
@@ -1835,7 +2048,7 @@ describe("BuyProperty", () => {
           freePlayer({ position: boardPosition(1) }),
           freePlayer({ id: P2 }),
         ],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1854,7 +2067,7 @@ describe("BuyProperty", () => {
 
       const state = makeState({
         players: [freePlayer({ position: boardPosition(1) })],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1875,7 +2088,7 @@ describe("BuyProperty", () => {
             balance: money(tile.price - 1),
           }),
         ],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1909,7 +2122,7 @@ describe("BuyProperty", () => {
           freePlayer({ position: boardPosition(4) }),
           freePlayer({ id: P2 }),
         ],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1926,7 +2139,7 @@ describe("BuyProperty", () => {
       expect(() => railroadTileAt(boardPosition(4))).not.toThrow();
       const state = makeState({
         players: [freePlayer({ position: boardPosition(4) })],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1940,7 +2153,7 @@ describe("BuyProperty", () => {
       const railroad = railroadTileAt(boardPosition(4));
       const state = makeState({
         players: [freePlayer({ position: boardPosition(4) })],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1975,7 +2188,7 @@ describe("BuyProperty", () => {
             balance: money(railroad.price - 1),
           }),
         ],
-        turn: turnPurchase(),
+        turn: turnPurchase({}),
       });
 
       const result = reduce(state, { type: "BuyProperty" }, makeDeps({}));
@@ -1992,7 +2205,7 @@ describe("ImproveProperty", () => {
   it("rejects ImproveProperty when the turn kind not roll", () => {
     const state = makeState({
       ownership: new Map([[boardPosition(5), P1]]),
-      turn: turnPurchase(),
+      turn: turnPurchase({}),
     });
 
     const result = reduce(
@@ -2190,7 +2403,7 @@ describe("PayJailFine", () => {
           balance: money(1000),
         }),
       ],
-      turn: turnPurchase(),
+      turn: turnPurchase({}),
     });
 
     const result = reduce(state, { type: "PayJailFine" }, makeDeps({}));
@@ -2265,8 +2478,8 @@ describe("PayJailFine", () => {
 });
 
 describe("DeclinePurchase", () => {
-  it("returns the turn to roll", () => {
-    const state = makeState({ turn: turnPurchase() });
+  it("advances player and returns the turn to roll when doubled: false", () => {
+    const state = makeState({ turn: turnPurchase({}) });
 
     const result = reduce(state, { type: "DeclinePurchase" }, makeDeps({}));
 
@@ -2284,7 +2497,7 @@ describe("DeclinePurchase", () => {
     const player2 = freePlayer();
     const state = makeState({
       players: [player1, player2],
-      turn: turnPurchase(),
+      turn: turnPurchase({}),
     });
 
     const result = reduce(state, { type: "DeclinePurchase" }, makeDeps({}));
@@ -2349,13 +2562,18 @@ function inPlay(player: Player): InPlayPlayer {
 
 function turnRoll(): TurnRoll {
   return {
+    doubled: false,
     kind: "roll",
   };
 }
 
-function turnPurchase(): TurnPurchase {
+function turnPurchase(
+  overrides: Partial<Omit<TurnPurchase, "kind">>,
+): TurnPurchase {
   return {
+    doubled: false,
     kind: "purchase",
+    ...overrides,
   };
 }
 

@@ -27,17 +27,21 @@ export interface BankruptPlayer extends PlayerCore {
 export type InPlayPlayer = FreePlayer | JailedPlayer;
 export type Player = InPlayPlayer | BankruptPlayer;
 
-export interface TurnRoll {
+export interface TurnCore {
+  readonly doubled: boolean;
+}
+
+export interface TurnRoll extends TurnCore {
   readonly kind: "roll";
 }
 
-export interface TurnPurchase {
+export interface TurnPurchase extends TurnCore {
   readonly kind: "purchase";
 }
 
 export type Turn = TurnRoll | TurnPurchase;
 
-export type TurnOutcome = "waits-command" | "ends";
+export type CommandOutcome = "canEnd" | "mustWait" | "mustEnd";
 
 export interface GameState {
   readonly players: ReadonlyArray<Player>;

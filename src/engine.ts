@@ -11,7 +11,7 @@ import {
   type BankruptPlayer,
   type InPlayFields,
   inPlayPlayerById,
-  type TurnOutcome,
+  type CommandOutcome,
 } from "./domain/state";
 import { type PlayerId } from "./domain/playerId";
 import {
@@ -56,7 +56,9 @@ export interface EngineResult {
   readonly events: ReadonlyArray<GameEvent>;
 }
 
-type LandingResult = EngineResult & { readonly outcome: TurnOutcome };
+type LandingResult = EngineResult & {
+  readonly outcome: CommandOutcome;
+};
 
 export type RejectionReason =
   | "NotBuyable"
@@ -146,14 +148,11 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
   });
 
   return finishTurn(
-    {
-      ...withOwnership(
-        replacePlayer(state, paidPlayer),
-        paidPlayer.position,
-        paidPlayer.id,
-      ),
-      turn: { kind: "roll" },
-    },
+    withOwnership(
+      replacePlayer(state, paidPlayer),
+      paidPlayer.position,
+      paidPlayer.id,
+    ),
     [
       {
         type: "PropertyBought",
@@ -161,7 +160,7 @@ function buyProperty(state: GameState, player: InPlayPlayer): Reduction {
         position: paidPlayer.position,
       },
     ],
-    "ends",
+    "canEnd",
   );
 }
 
@@ -248,6 +247,9 @@ function move(
   deps: EngineDeps,
 ): Accepted {
   const [a, b] = deps.dice.roll();
+
+  const rolled = { ...state, turn: { ...state.turn, doubled: a === b } };
+
   const sum = a + b;
 
   const from = player.position;
@@ -255,7 +257,7 @@ function move(
   const to = boardPosition(raw % BOARD_SIZE);
 
   const movedPlayer = overrideFreePlayer(player, { position: to });
-  const moved = replacePlayer(state, movedPlayer);
+  const moved = replacePlayer(rolled, movedPlayer);
 
   const events: GameEvent[] = [];
 
@@ -276,12 +278,9 @@ function declinePurchase(state: GameState, player: InPlayPlayer): Reduction {
   }
 
   return finishTurn(
-    {
-      ...state,
-      turn: { kind: "roll" },
-    },
+    state,
     [{ type: "PurchaseDeclined", playerId: player.id }],
-    "ends",
+    "canEnd",
   );
 }
 
@@ -318,14 +317,14 @@ function rollForJail(
     return finishTurn(
       replacePlayer(state, newPlayer),
       [{ type: "RemainedInJail", playerId: player.id }],
-      "ends",
+      "mustEnd",
     );
   }
 
   return finishTurn(
     replacePlayer(state, freeJailedPlayer(player)),
     [{ type: "FreedFromJail", playerId: player.id }],
-    "ends",
+    "mustEnd",
   );
 }
 
@@ -341,7 +340,7 @@ function replacePlayer(state: GameState, player: Player): GameState {
 function finishTurn(
   state: GameState,
   events: GameEvent[],
-  outcome: TurnOutcome,
+  outcome: CommandOutcome,
 ): Accepted {
   if (state.players.filter((p) => p.kind !== "bankrupt").length === 1) {
     const win = nextPlayerId(state);
@@ -354,24 +353,47 @@ function finishTurn(
   }
 
   switch (outcome) {
-    case "waits-command":
+    case "canEnd": {
+      if (state.turn.doubled) {
+        return {
+          status: "accepted",
+          state: {
+            ...state,
+            turn: { kind: "roll", doubled: false },
+          },
+          events,
+        };
+      } else {
+        return advanceTurn(state, events);
+      }
+    }
+    case "mustWait": {
       return {
         status: "accepted",
         state,
         events,
       };
-    case "ends": {
-      const next = nextPlayerId(state);
-      events.push({ type: "TurnBegan", playerId: next });
-      return {
-        status: "accepted",
-        state: { ...state, currentPlayerId: next },
-        events,
-      };
+    }
+    case "mustEnd": {
+      return advanceTurn(state, events);
     }
     default:
       return assertNever(outcome);
   }
+}
+
+function advanceTurn(state: GameState, events: GameEvent[]): Accepted {
+  const next = nextPlayerId(state);
+  events.push({ type: "TurnBegan", playerId: next });
+  return {
+    status: "accepted",
+    state: {
+      ...state,
+      turn: { kind: "roll", doubled: false },
+      currentPlayerId: next,
+    },
+    events,
+  };
 }
 
 function overrideJailedPlayer(
@@ -467,7 +489,11 @@ function applyLanding(
 
   switch (tile.kind) {
     case "go":
-      return { state, events: [], outcome: "ends" };
+      return {
+        state,
+        events: [],
+        outcome: "canEnd",
+      };
     case "property": {
       return landOnProperty(state, player, tile);
     }
@@ -475,12 +501,16 @@ function applyLanding(
       return landOnRailroad(state, player);
     }
     case "go-to-jail": {
-      return sendToJail(state, player);
+      return { ...sendToJail(state, player), outcome: "mustEnd" };
     }
     case "jail":
-      return { state, events: [], outcome: "ends" };
+      return {
+        state,
+        events: [],
+        outcome: "canEnd",
+      };
     case "freeParking": {
-      return drawToFreeParking(state);
+      return { ...drawToFreeParking(state), outcome: "canEnd" };
     }
     case "tax": {
       return {
@@ -489,11 +519,14 @@ function applyLanding(
           playerId: player.id,
           amount: tile.amount,
         }),
-        outcome: "ends",
+        outcome: "canEnd",
       };
     }
     case "chance": {
-      return applyCard(state, player, deps.deck.draw());
+      return {
+        ...applyCard(state, player, deps.deck.draw()),
+        outcome: "canEnd",
+      };
     }
     default:
       return assertNever(tile);
@@ -509,7 +542,7 @@ function landOnProperty(
 
   if (ownerId === undefined) {
     return {
-      state: { ...state, turn: { kind: "purchase" } },
+      state: { ...state, turn: { ...state.turn, kind: "purchase" } },
       events: [
         {
           type: "LandedOnProperty",
@@ -517,7 +550,7 @@ function landOnProperty(
           position: player.position,
         },
       ],
-      outcome: "waits-command",
+      outcome: "mustWait",
     };
   }
 
@@ -525,7 +558,7 @@ function landOnProperty(
     return {
       state,
       events: [],
-      outcome: "ends",
+      outcome: "canEnd",
     };
   }
 
@@ -535,7 +568,10 @@ function landOnProperty(
   const level = getImprovementLevel(state, player.position);
   const rent = money(tile.rent * level * monopolyFactor);
 
-  return { ...chargeRent(state, player, owner, rent), outcome: "ends" };
+  return {
+    ...chargeRent(state, player, owner, rent),
+    outcome: "canEnd",
+  };
 }
 
 function landOnRailroad(state: GameState, player: FreePlayer): LandingResult {
@@ -543,7 +579,7 @@ function landOnRailroad(state: GameState, player: FreePlayer): LandingResult {
 
   if (ownerId === undefined) {
     return {
-      state: { ...state, turn: { kind: "purchase" } },
+      state: { ...state, turn: { ...state.turn, kind: "purchase" } },
       events: [
         {
           type: "LandedOnRailroad",
@@ -551,7 +587,7 @@ function landOnRailroad(state: GameState, player: FreePlayer): LandingResult {
           position: player.position,
         },
       ],
-      outcome: "waits-command",
+      outcome: "mustWait",
     };
   }
 
@@ -559,7 +595,7 @@ function landOnRailroad(state: GameState, player: FreePlayer): LandingResult {
     return {
       state,
       events: [],
-      outcome: "ends",
+      outcome: "canEnd",
     };
   }
 
@@ -569,10 +605,13 @@ function landOnRailroad(state: GameState, player: FreePlayer): LandingResult {
 
   const rent = money(RAILROAD_RENT_BASE * 2 ** (railroadAmount - 1));
 
-  return { ...chargeRent(state, player, owner, rent), outcome: "ends" };
+  return {
+    ...chargeRent(state, player, owner, rent),
+    outcome: "canEnd",
+  };
 }
 
-function sendToJail(state: GameState, player: FreePlayer): LandingResult {
+function sendToJail(state: GameState, player: FreePlayer): EngineResult {
   const jailedPlayer = jailPlayer(player);
   return {
     state: replacePlayer(state, jailedPlayer),
@@ -585,11 +624,10 @@ function sendToJail(state: GameState, player: FreePlayer): LandingResult {
       },
       { type: "SentToJail", playerId: player.id },
     ],
-    outcome: "ends",
   };
 }
 
-function drawToFreeParking(state: GameState): LandingResult {
+function drawToFreeParking(state: GameState): EngineResult {
   const events: GameEvent[] = state.players.flatMap((p) =>
     p.kind === "free" && p.position !== FREE_PARKING_POSITION
       ? [
@@ -610,14 +648,14 @@ function drawToFreeParking(state: GameState): LandingResult {
       : p,
   );
 
-  return { events, state: { ...state, players }, outcome: "ends" };
+  return { events, state: { ...state, players } };
 }
 
 function applyCard(
   state: GameState,
   player: FreePlayer,
   card: Card,
-): LandingResult {
+): EngineResult {
   const events: GameEvent[] = [];
 
   events.push({ type: "CardDrawn", playerId: player.id, cardId: card.id });
@@ -637,7 +675,6 @@ function applyCard(
       return {
         state: replacePlayer(state, creditPlayer),
         events,
-        outcome: "ends",
       };
     }
     case "debit": {
@@ -652,7 +689,6 @@ function applyCard(
       return {
         state: result.state,
         events,
-        outcome: "ends",
       };
     }
     case "repair": {
@@ -675,7 +711,6 @@ function applyCard(
       return {
         state: result.state,
         events,
-        outcome: "ends",
       };
     }
     default:
