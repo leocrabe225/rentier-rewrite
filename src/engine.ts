@@ -31,6 +31,7 @@ import {
 import { type ImprovementLevel } from "./domain/improvementLevel";
 import {
   JAIL_FINE,
+  MAX_CONSECUTIVE_DOUBLES,
   MAX_JAIL_ATTEMPTS,
   RAILROAD_RENT_BASE,
 } from "./domain/rules";
@@ -248,7 +249,15 @@ function move(
 ): Accepted {
   const [a, b] = deps.dice.roll();
 
-  const rolled = { ...state, turn: { ...state.turn, doubled: a === b } };
+  if (
+    a === b &&
+    state.turn.consecutiveDoubles + 1 === MAX_CONSECUTIVE_DOUBLES
+  ) {
+    const jailed = sendToJail(state, player);
+    return finishTurn(jailed.state, [...jailed.events], "mustEnd");
+  }
+
+  const rolled = recordDoubles(state, [a, b]);
 
   const sum = a + b;
 
@@ -359,7 +368,11 @@ function finishTurn(
           status: "accepted",
           state: {
             ...state,
-            turn: { kind: "roll", doubled: false },
+            turn: {
+              kind: "roll",
+              consecutiveDoubles: state.turn.consecutiveDoubles,
+              doubled: false,
+            },
           },
           events,
         };
@@ -389,10 +402,24 @@ function advanceTurn(state: GameState, events: GameEvent[]): Accepted {
     status: "accepted",
     state: {
       ...state,
-      turn: { kind: "roll", doubled: false },
+      turn: { kind: "roll", consecutiveDoubles: 0, doubled: false },
       currentPlayerId: next,
     },
     events,
+  };
+}
+
+function recordDoubles(state: GameState, roll: DiceRoll): GameState {
+  const doubled = roll[0] === roll[1];
+  return {
+    ...state,
+    turn: {
+      ...state.turn,
+      doubled,
+      consecutiveDoubles: doubled
+        ? state.turn.consecutiveDoubles + 1
+        : state.turn.consecutiveDoubles,
+    },
   };
 }
 

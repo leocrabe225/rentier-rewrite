@@ -620,7 +620,7 @@ describe("RollDice", () => {
     });
     it("sets Turn kind to purchase when the player lands on an unowned railroad", () => {
       const player1 = freePlayer({});
-      const state = makeState({ players: [player1], turn: turnRoll() });
+      const state = makeState({ players: [player1], turn: turnRoll({}) });
 
       const dice: Dice = { roll: () => [1, 3] };
 
@@ -815,6 +815,29 @@ describe("RollDice", () => {
         balance: STARTING_BALANCE,
         kind: "free",
       });
+    });
+
+    it("emits sent to jail on the third consecutive double", () => {
+      const state = makeState({
+        turn: turnRoll({ consecutiveDoubles: 2 }),
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(0),
+          to: JAIL_POSITION,
+        },
+        { type: "SentToJail", playerId: P1 },
+        { type: "TurnBegan", playerId: P2 },
+      ]);
     });
   });
 
@@ -1846,7 +1869,7 @@ describe("RollDice", () => {
       expect(result.state).toEqual({
         ...state,
         players: [{ ...player1, position: boardPosition(8) }, player2],
-        turn: { kind: "purchase", doubled: true },
+        turn: turnPurchase({ doubled: true, consecutiveDoubles: 1 }),
       });
     });
 
@@ -1876,7 +1899,7 @@ describe("RollDice", () => {
           },
           player2,
         ],
-        turn: { doubled: false, kind: "roll" },
+        turn: turnRoll({}),
       });
     });
 
@@ -1901,7 +1924,7 @@ describe("RollDice", () => {
 
       expect(result.state).toEqual({
         ...state,
-        turn: { doubled: false, kind: "roll" },
+        turn: turnRoll({}),
       });
     });
 
@@ -1997,6 +2020,76 @@ describe("RollDice", () => {
         { type: "TurnBegan", playerId: P2 },
       ]);
     });
+    it("grants a reroll and bumps the counter on the second consecutive double", () => {
+      const turn = turnRoll({ consecutiveDoubles: 1 });
+      const player1 = freePlayer();
+      const player2 = freePlayer({ id: P2 });
+      const state = makeState({
+        players: [player1, player2],
+        turn,
+        ownership: new Map([[boardPosition(8), P1]]),
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        turn: { ...turn, consecutiveDoubles: 2 },
+        players: [{ ...player1, position: boardPosition(8) }, player2],
+      });
+    });
+
+    it("resets the double counter when the turn passes to the next player", () => {
+      const turn = turnRoll({ consecutiveDoubles: 1 });
+      const player1 = freePlayer();
+      const player2 = freePlayer({ id: P2 });
+      const state = makeState({
+        players: [player1, player2],
+        turn,
+        ownership: new Map([[boardPosition(7), P1]]),
+      });
+
+      const dice: Dice = { roll: () => [4, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        currentPlayerId: P2,
+        turn: turnRoll({}),
+        players: [{ ...player1, position: boardPosition(7) }, player2],
+      });
+    });
+
+    it("does not count a jail-escape double toward the three doubles limit", () => {
+      const turn = turnRoll({});
+      const player1 = jailedPlayer({ position: JAIL_POSITION });
+      const player2 = freePlayer({ id: P2 });
+      const state = makeState({
+        players: [player1, player2],
+        turn,
+        ownership: new Map([[boardPosition(17), P1]]),
+      });
+
+      const dice: Dice = { roll: () => [4, 4] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        currentPlayerId: P1,
+        turn: turnRoll({ consecutiveDoubles: 1 }),
+        players: [freePlayer({ position: boardPosition(17) }), player2],
+      });
+    });
   });
 });
 
@@ -2037,7 +2130,7 @@ describe("BuyProperty", () => {
       currentPlayerId: P2,
       players: [{ ...player1, balance: player1.balance - tile.price }, player2],
       ownership: new Map([[boardPosition(1), P1]]),
-      turn: turnRoll(),
+      turn: turnRoll({}),
     });
   });
 
@@ -2487,7 +2580,7 @@ describe("DeclinePurchase", () => {
 
     expect(result.state).toEqual({
       ...state,
-      turn: turnRoll(),
+      turn: turnRoll({}),
       currentPlayerId: P2,
     });
   });
@@ -2560,10 +2653,12 @@ function inPlay(player: Player): InPlayPlayer {
   return player;
 }
 
-function turnRoll(): TurnRoll {
+function turnRoll(overrides: Partial<Omit<TurnRoll, "kind">>): TurnRoll {
   return {
     doubled: false,
+    consecutiveDoubles: 0,
     kind: "roll",
+    ...overrides,
   };
 }
 
@@ -2572,6 +2667,7 @@ function turnPurchase(
 ): TurnPurchase {
   return {
     doubled: false,
+    consecutiveDoubles: 0,
     kind: "purchase",
     ...overrides,
   };
@@ -2583,7 +2679,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     currentPlayerId: P1,
     ownership: new Map(),
     improvements: new Map(),
-    turn: turnRoll(),
+    turn: turnRoll({}),
     ...overrides,
   };
 }

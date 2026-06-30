@@ -29,6 +29,7 @@ export type Player = InPlayPlayer | BankruptPlayer;
 
 export interface TurnCore {
   readonly doubled: boolean;
+  readonly consecutiveDoubles: number;
 }
 
 export interface TurnRoll extends TurnCore {
