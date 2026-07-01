@@ -28,6 +28,7 @@ import {
 import { FREE_PARKING_POSITION, JAIL_POSITION, tileAt } from "./domain/board";
 import { improvementLevel } from "./domain/improvementLevel";
 import {
+  GO_SALARY,
   JAIL_FINE,
   MAX_JAIL_ATTEMPTS,
   RAILROAD_RENT_BASE,
@@ -147,7 +148,7 @@ describe("RollDice", () => {
           from: boardPosition(BOARD_SIZE - 1),
           to: boardPosition(5),
         },
-        { type: "PassedGo", playerId: P1 },
+        { type: "PassedGo", playerId: P1, amount: GO_SALARY },
         {
           type: "LandedOnProperty",
           playerId: P1,
@@ -182,7 +183,7 @@ describe("RollDice", () => {
           from: boardPosition(BOARD_SIZE - 4),
           to: boardPosition(0),
         },
-        { type: "PassedGo", playerId: P1 },
+        { type: "PassedGo", playerId: P1, amount: GO_SALARY },
         { type: "TurnBegan", playerId: P2 },
       ]);
 
@@ -2089,6 +2090,101 @@ describe("RollDice", () => {
         turn: turnRoll({ consecutiveDoubles: 1 }),
         players: [freePlayer({ position: boardPosition(17) }), player2],
       });
+    });
+  });
+
+  describe("GO", () => {
+    it("credits the GO salary when the player lands on GO", () => {
+      const player1 = freePlayer({ position: boardPosition(BOARD_SIZE - 4) });
+      const player2 = freePlayer({ id: P2 });
+      const state = makeState({
+        players: [player1, player2],
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.state).toEqual({
+        ...state,
+        currentPlayerId: P2,
+        players: [
+          { ...player1, balance: STARTING_BALANCE + GO_SALARY, position: 0 },
+          player2,
+        ],
+      });
+    });
+
+    it("emits PassedGo before the tax", () => {
+      const tile = taxTileAt(boardPosition(3));
+      const state = makeState({
+        players: [
+          freePlayer({
+            position: boardPosition(BOARD_SIZE - 1),
+            balance: money(tile.amount - 1),
+          }),
+          freePlayer({ id: P2 }),
+        ],
+      });
+
+      const dice: Dice = { roll: () => [1, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(BOARD_SIZE - 1),
+          to: boardPosition(3),
+        },
+        { type: "PassedGo", playerId: P1, amount: GO_SALARY },
+        {
+          type: "TaxPaid",
+          playerId: P1,
+          amount: tile.amount,
+        },
+        {
+          type: "TurnBegan",
+          playerId: P2,
+        },
+      ]);
+    });
+
+    it("does not emit PassedGo on third double (sent-to-jail)", () => {
+      const state = makeState({
+        players: [
+          freePlayer({ position: boardPosition(BOARD_SIZE - 1) }),
+          freePlayer({ id: P2 }),
+        ],
+        turn: turnRoll({ consecutiveDoubles: 2 }),
+      });
+
+      const dice: Dice = { roll: () => [3, 3] };
+
+      const result = reduce(state, { type: "RollDice" }, makeDeps({ dice }));
+
+      assertAccepted(result);
+
+      expect(result.events).toEqual([
+        {
+          type: "Moved",
+          playerId: P1,
+          from: boardPosition(BOARD_SIZE - 1),
+          to: JAIL_POSITION,
+        },
+        {
+          type: "SentToJail",
+          playerId: P1,
+        },
+        {
+          type: "TurnBegan",
+          playerId: P2,
+        },
+      ]);
     });
   });
 });

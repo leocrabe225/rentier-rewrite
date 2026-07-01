@@ -30,6 +30,7 @@ import {
 } from "./domain/board";
 import { type ImprovementLevel } from "./domain/improvementLevel";
 import {
+  GO_SALARY,
   JAIL_FINE,
   MAX_CONSECUTIVE_DOUBLES,
   MAX_JAIL_ATTEMPTS,
@@ -266,16 +267,29 @@ function move(
   const to = boardPosition(raw % BOARD_SIZE);
 
   const movedPlayer = overrideFreePlayer(player, { position: to });
-  const moved = replacePlayer(rolled, movedPlayer);
 
   const events: GameEvent[] = [];
 
   events.push({ type: "Moved", playerId: movedPlayer.id, from, to });
-  if (raw >= BOARD_SIZE) {
-    events.push({ type: "PassedGo", playerId: movedPlayer.id });
+
+  const passedGo = raw >= BOARD_SIZE;
+
+  const newPlayer = passedGo
+    ? overrideFreePlayer(movedPlayer, {
+        balance: money(movedPlayer.balance + GO_SALARY),
+      })
+    : movedPlayer;
+  const newState = replacePlayer(rolled, newPlayer);
+
+  if (passedGo) {
+    events.push({
+      type: "PassedGo",
+      playerId: movedPlayer.id,
+      amount: GO_SALARY,
+    });
   }
 
-  const landing = applyLanding(moved, movedPlayer, deps);
+  const landing = applyLanding(newState, newPlayer, deps);
   events.push(...landing.events);
 
   return finishTurn(landing.state, events, landing.outcome);

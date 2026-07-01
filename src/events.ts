@@ -11,7 +11,11 @@ export type GameEvent =
       readonly from: BoardPosition;
       readonly to: BoardPosition;
     }
-  | { readonly type: "PassedGo"; readonly playerId: PlayerId }
+  | {
+      readonly type: "PassedGo";
+      readonly playerId: PlayerId;
+      readonly amount: Money;
+    }
   | {
       readonly type: "LandedOnProperty";
       readonly playerId: PlayerId;
